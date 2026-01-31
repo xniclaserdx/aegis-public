@@ -1,6 +1,7 @@
 # Standard library imports
 import csv
 import hashlib
+import logging
 import os
 import random
 import re
@@ -26,6 +27,13 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from wtforms import HiddenField, PasswordField, StringField
 from wtforms.validators import DataRequired, Email, Length
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 
 class RegistrationForm(FlaskForm): # Form for user registration using WTForms
     email = StringField('Email', validators=[DataRequired(), Email()], default='')
@@ -50,23 +58,37 @@ load_dotenv()
 # Flask app setup
 app = Flask(__name__, template_folder='.')
 
+# Rate limiting configuration
 RATE_LIMIT = {} # Rate limit dictionary
 RATE_LIMIT_PERIOD = 60  # Rate limit period in seconds
 MAX_ATTEMPTS = 15 # Maximum number of attempts before rate limiting
 
-# CSFR Protection
+# Session and authentication constants
+SESSION_LIFETIME_SECONDS = 1800  # 30 minutes
+VERIFICATION_CODE_MIN = 100000  # 6-digit verification code minimum
+VERIFICATION_CODE_MAX = 999999  # 6-digit verification code maximum
+VERIFICATION_CODE_EXPIRY_SECONDS = 120  # 2 minutes
+PASSWORD_RESET_TOKEN_EXPIRY_SECONDS = 300  # 5 minutes
+
+# CSRF Protection
 csrf = CSRFProtect(app) # CSRF protection for the application
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback_secret_key') # Secret key for the application
+
+# Secret key must be set via environment variable for security
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable must be set")
+app.config['SECRET_KEY'] = SECRET_KEY
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY']) # Serializer for the secret key
 
-app.config['CSRF_ENABLED'] = os.getenv('CSRF_ENABLED') == 'True' # Enable CSRF protection
+# CSRF protection enabled by default (can be disabled for testing only)
+app.config['CSRF_ENABLED'] = os.getenv('CSRF_ENABLED', 'True') == 'True'
 
 # Session configuration 
 app.config['SESSION_COOKIE_SECURE'] = True # Secure session cookie
 app.config['SESSION_COOKIE_HTTPONLY'] = True # HTTP only session cookie
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax' # SameSite cookie policy
 app.config['SESSION_COOKIE_NAME'] = '__Secure-session' # Session cookie name
-app.config['PERMANENT_SESSION_LIFETIME'] = 1800 # Session lifetime in seconds
+app.config['PERMANENT_SESSION_LIFETIME'] = SESSION_LIFETIME_SECONDS # Session lifetime in seconds
 
 # Pepper for password hashing
 PEPPER = os.getenv("PASSWORD_PEPPER")
@@ -121,7 +143,8 @@ def session_garbage_collector_thread():
                 reset_password_tokens.remove(reset_token)
 
             time.sleep(60) # Check every 60 seconds
-    except:
+    except Exception as e:
+        logger.error(f"Session garbage collector failed: {str(e)}")
         shutdown_webserver("Failed to run session garbage collector thread.")
 
 # Start the session garbage collector thread as a daemon
@@ -132,7 +155,7 @@ def extend_session(response):
     """Extend the session duration."""
     cookie = request.cookies.get('logged_in') # Get the session cookie
     response.set_cookie('logged_in', cookie, secure=True,
-                                httponly=True, samesite='Lax', expires=time.time() + 1800) # Extend the session duration 
+                                httponly=True, samesite='Lax', expires=time.time() + SESSION_LIFETIME_SECONDS) # Extend the session duration 
     return response # Return the response
 
 def is_valid_email(email):
@@ -165,10 +188,6 @@ def get_session_email(cookie_value):
     if session_data:
         return session_data.get('email')
     return None
-
-def is_valid_email(email):
-    """Check if the provided email address is valid."""
-    return re.match(r"[^@]+@[^@]+\.[^@]+", email) is not None
 
 def send_email(email, subject, body, is_html=False):
         """Send an email to the user."""
@@ -220,7 +239,7 @@ def log_event(message): # Function to log events to a text file
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             file.write(f'[{timestamp}] {message}\n')
     except Exception as e:
-        print(f"Failed to log event: {str(e)}")
+        logger.error(f"Failed to log event: {str(e)}")
 
 def get_user_attribute(user_data, attribute):
     try:
@@ -339,8 +358,8 @@ def is_email_registered(email):
                     log_event(f'Registration attempt with already registered email: {email}')
                     flash('Email address already registered.', 'error')
                     return True
-    except:
-        print("Failed to read user data.")
+    except Exception as e:
+        logger.error(f"Failed to read user data: {str(e)}")
     return False
 
 def register_user(email, password):
@@ -353,8 +372,8 @@ def register_user(email, password):
             writer.writerow([email, hashed_password, "user", is_verified])
         log_event(f'New registration for {email} with role user')
         return True
-    except:
-        print("Failed to write user data.")
+    except Exception as e:
+        logger.error(f"Failed to write user data: {str(e)}")
         log_event(f'Failed to write user data at {datetime.now()}')
         return False
 
@@ -373,8 +392,8 @@ def get_users_from_csv():
         with open(CSV_FILE, "r") as file:
             reader = csv.reader(file)
             return [create_user_dict(user) for user in reader]
-    except:
-        print("Failed to read user data.")
+    except Exception as e:
+        logger.error(f"Failed to read user data: {str(e)}")
         return None
 
 def authenticate_user(users, email, password):
@@ -405,9 +424,9 @@ def prepare_verification_response(form):
 
 def generate_coupon_cookie(response):
     """Generate a coupon cookie and set it in the response."""
-    coupon_cookie_value = str(random.randint(100000, 999999))
+    coupon_cookie_value = str(random.randint(VERIFICATION_CODE_MIN, VERIFICATION_CODE_MAX))
     response.set_cookie('coupon', coupon_cookie_value, secure=True,
-                        httponly=False, samesite='Lax', expires=time.time() + 120)
+                        httponly=False, samesite='Lax', expires=time.time() + VERIFICATION_CODE_EXPIRY_SECONDS)
     return coupon_cookie_value
 
 def generate_session_token():
@@ -416,7 +435,7 @@ def generate_session_token():
 
 def generate_verification_code():
     """Generate a random verification code."""
-    return str(random.randint(100000, 999999))
+    return str(random.randint(VERIFICATION_CODE_MIN, VERIFICATION_CODE_MAX))
 
 def store_verification_coupon(user, coupon_cookie_value, session_token, verification_code):
     """Store the verification coupon in the global coupon store."""
@@ -465,14 +484,15 @@ def login_user(response, verification_coupon):
 def generate_reset_token(email):
     """Generate a reset token for the user."""
     try:
-        token = hashlib.sha256((email + app.config['SECRET_KEY']+ str(random.randint(100000, 999999))).encode()).hexdigest()
+        token = hashlib.sha256((email + app.config['SECRET_KEY']+ str(random.randint(VERIFICATION_CODE_MIN, VERIFICATION_CODE_MAX))).encode()).hexdigest()
         reset_token = {
             'token': token,
             'email': email,
-            'expiry': time.time() + 300
+            'expiry': time.time() + PASSWORD_RESET_TOKEN_EXPIRY_SECONDS
         } 
         return reset_token
-    except:
+    except Exception as e:
+        logger.error(f"Failed to generate reset token: {str(e)}")
         shutdown_webserver("Failed to generate reset token.")
 
 def validate_reset_email(email):
@@ -528,8 +548,8 @@ def remove_reset_token(reset_token):
 
 def shutdown_webserver(message):
     """Shutdown the web app and log the error message. Is called in case of an critical error to prevent further damage."""
-    print(f"{time.time()} - {message}")
-    print("Application safety not guaranteed. Please check the log file for more information.")
+    logger.critical(f"{message}")
+    logger.critical("Application safety not guaranteed. Please check the log file for more information.")
     log_event(f"Shutting down the application. {message}")
     os._exit(1)
         

@@ -404,137 +404,17 @@ class TestLoginRegisterRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'>AEGIS Login', response.data) 
 
-""" 
-Testing these routes is not that useful as we are not doing much in the routes 
-We explain why in the documentation
+# Note: Additional route tests are not included as they are tested indirectly by the functions
+# that are called by the routes. For comprehensive testing, End-to-End and Integration testing
+# with tools like Selenium would be needed. The current unit tests provide adequate coverage
+# for the core functionality.
 
-Summary:
-They are tested indirectly by the functions that are called by the routes
-For further testing, End-to-End testing and Integration testing could be done but something like Selenium is needed for that
-As the Application is not that complex, we can rely on the previous unit tests for now and manual testing with the real application and browser
-Also we would have to abstract too so many things like cookies and client interaction in unittest, 
-    like setting mock cookies which basically makes the test useless as we are not testing the real application
-We have decided to not run these in the pipeline for now
+# Note: Training tests are not included in the standard test suite to avoid
+# long-running model training in CI/CD pipelines. If you need to test the training
+# functionality, uncomment the TestBackendTrain class below.
 
-class TestAppDashboardRoutes(unittest.TestCase):
-    def setUp(self):
-        self.app = Flask(__name__)
-        from app_dashboard import dashboard_routes
-        self.app.register_blueprint(dashboard_routes)
-        self.client = self.app.test_client()
-        self.app.config['TESTING'] = True
-        self.app.config['WTF_CSRF_ENABLED'] = False
-        with self.client as c:
-            with c.session_transaction() as sess:
-                sess['logged_in'] = 'admin_session_token'
-                store_session('admin_session_token', 'test@example.com', 'user', time.time() + 1800)
-                c.set_cookie('logged_in', 'admin_cookie')
-
-
-    @patch('app_dashboard.get_session_email')
-    @patch('app_dashboard.get_session_role')
-    def test_user_info(self, mock_get_session_role, mock_get_session_email):
-        mock_get_session_email.return_value = 'test@example.com'
-        mock_get_session_role.return_value = 'user'
-        with self.app.test_request_context('/user_info', environ_overrides={'HTTP_COOKIE': 'logged_in=test_uuid'}):
-            response = self.client.get('/user_info')
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json, {'email': 'test@example.com', 'role': 'user'})
-
-    @patch('app_dashboard.map_uuid_to_simulation')
-    @patch('app_dashboard.decode_categorical_columns')
-    @patch('app_dashboard.reorder_columns')
-    @patch('app_dashboard.render_template_with_table')
-    def test_open_datatable(self, mock_render_template_with_table, mock_reorder_columns, mock_decode_categorical_columns, mock_map_uuid_to_simulation):
-        mock_simulation = MagicMock()
-        mock_simulation['data_simulator'].last_120_rows = [MagicMock()]
-        mock_map_uuid_to_simulation.return_value = mock_simulation
-        mock_render_template_with_table.return_value = 'rendered_template'
-        with self.app.test_request_context('/received_data', cookies={'logged_in': 'test_uuid'}):
-            response = self.client.get('/received_data')
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.data.decode(), 'rendered_template')
-
-    @patch('app_dashboard.calculate_sha256')
-    @patch('app_dashboard.render_template_string')
-    def test_model_evaluation(self, mock_render_template_string, mock_calculate_sha256):
-        mock_calculate_sha256.return_value = 'dummy_hash'
-        mock_render_template_string.return_value = 'rendered_template'
-        with self.app.test_request_context('/model_evaluation'):
-            response = self.client.get('/model_evaluation')
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.data.decode(), 'rendered_template')
-
-    @patch('app_dashboard.os.path.exists')
-    @patch('app_dashboard.send_file')
-    def test_download_model(self, mock_send_file, mock_path_exists):
-        mock_path_exists.return_value = True
-        mock_send_file.return_value = 'file_sent'
-        with self.app.test_request_context('/download_model'):
-            response = self.client.get('/download_model')
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.data.decode(), 'file_sent')
-
-    @patch('app_dashboard.map_uuid_to_simulation')
-    @patch('app_dashboard.initialize_simulation')
-    @patch('app_dashboard.get_dashboard_template')
-    @patch('app_dashboard.render_template_string')
-    def test_dashboard(self, mock_render_template_string, mock_get_dashboard_template, mock_initialize_simulation, mock_map_uuid_to_simulation):
-        mock_map_uuid_to_simulation.return_value = None
-        mock_initialize_simulation.return_value = None
-        mock_get_dashboard_template.return_value = 'dashboard_template'
-        mock_render_template_string.return_value = 'rendered_template'
-        with self.app.test_request_context('/dashboard', cookies={'logged_in': 'test_uuid'}):
-            response = self.client.get('/dashboard')
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.data.decode(), 'rendered_template')
-"""
-
-"""
-class TestDashboardSocketIOEvents(unittest.TestCase):
-    def setUp(self):
-        self.app = Flask(__name__)
-        self.app.config['TESTING'] = True
-        self.socketio = SocketIO(self.app, logger=False, engineio_logger=False, cors_allowed_origins='*')
-        self.client = self.socketio.test_client(self.app)
-        self.mock_uuid = 'test_uuid'
-        self.mock_simulation = {
-            'status': threading.Event(),
-            'thread': threading.Thread(),
-            'data_simulator': MagicMock()
-        }
-        # Patch the simulations list
-        self.simulations_patcher = patch('app_dashboard.simulations', [(self.mock_uuid, self.mock_simulation)])
-        self.simulations_patcher.start()
-        # Patch the request cookies
-        self.request_patcher = patch('app_dashboard.request')
-        self.mock_request = self.request_patcher.start()
-        self.mock_request.cookies.get.return_value = self.mock_uuid
-
-    def tearDown(self):
-        self.simulations_patcher.stop()
-        self.request_patcher.stop()
-
-    def test_start_simulation(self):
-        with patch('app_dashboard.socketio.emit') as mock_emit:
-            self.client.emit('start_simulation')
-            mock_emit.assert_called_with('simulation_status', {'status': 'started'})
-
-    def test_stop_simulation(self):
-        with patch('app_dashboard.socketio.emit') as mock_emit:
-            self.client.emit('stop_simulation')
-            mock_emit.assert_called_with('simulation_status', {'status': 'stopped'})
-
-    def test_reset_data(self):
-        self.client.emit('reset_data')
-        simulator = self.mock_simulation['data_simulator']
-        self.assertEqual(simulator.normal_count, 0)
-        self.assertEqual(simulator.bad_count, 0)
-        self.assertEqual(len(simulator.last_120_rows), 0)
-
-We dont need to test the training on every test run uncomment if needed
-
-# We dont want to keep training a model in every git pipeline run, if you want to test the training, uncomment the following code
+# We don't want to keep training a model in every git pipeline run
+# If you want to test the training, uncomment the following code
 class TestBackendTrain(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -596,7 +476,6 @@ class TestBackendTrain(unittest.TestCase):
         dataloader = DataLoader(dataset, batch_size=32, shuffle=False)
         evaluate(model, dataloader, device)
         # No assertion here, just ensuring the function runs without errors
-""" 
 
 if __name__ == "__main__":
     unittest.main()
