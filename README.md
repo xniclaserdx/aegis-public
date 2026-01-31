@@ -1,6 +1,7 @@
 # Codename AEGIS
 
 **Advanced Enterprise Guardian for Intrusion Security**
+This repository is a sanitized public version of a university project.
 
 [![Live Demo](https://img.shields.io/badge/demo-live-success)](https://bcsm-aegis.tech)
 [![Python 3.12.7+](https://img.shields.io/badge/python-3.12.7+-blue.svg)](https://www.python.org/downloads/)
@@ -25,7 +26,7 @@
 
 ## Overview
 
-AEGIS is an advanced anomaly detection system designed to identify suspicious activities within network infrastructure in real-time. Built for TechCorp's IT department, this system provides automated network monitoring using the KDD Cup 1999 dataset, which contains comprehensive network traffic data including both normal and attack patterns.
+AEGIS is an advanced anomaly detection system designed to identify suspicious activities within network infrastructure in real-time. Built for the "TechCorp's IT" department, this system provides automated network monitoring using the KDD Cup 1999 dataset, which contains comprehensive network traffic data including both normal and attack patterns.
 
 The system combines machine learning with modern web technologies to deliver a secure, scalable solution for network security monitoring.
 
@@ -419,11 +420,6 @@ The project uses several automated checks:
 - **Bandit**: Security vulnerability scanning
 - **Safety & Pip-Audit**: Dependency vulnerability checks
 
-## License
-
-This project is part of an academic assignment for TechCorp's IT security initiative. All rights reserved.
-
----
 
 **Project Status**: Active Development  
 **Last Updated**: January 2026  
