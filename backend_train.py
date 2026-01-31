@@ -1,3 +1,4 @@
+import logging
 import os
 
 import matplotlib.pyplot as plt
@@ -14,6 +15,21 @@ from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 from tqdm import tqdm
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Training hyperparameters
+HIDDEN_LAYER_SIZE = 128  # Number of neurons in hidden layers
+TRAINING_EPOCHS = 5  # Number of training epochs per fold
+LEARNING_RATE = 0.001  # Learning rate for optimizer
+KFOLD_SPLITS = 5  # Number of K-fold cross-validation splits
+BATCH_SIZE = 32  # Batch size for training and evaluation
+NORMAL_CLASS_WEIGHT = 5.0  # Weight multiplier for normal class to reduce false negatives for attacks
 
 # Load dataset with optimized memory usage
 cols = ['duration', 'protocol_type', 'service', 'flag', 'src_bytes', 'dst_bytes', 'land', 'wrong_fragment', 'urgent', 
@@ -81,7 +97,7 @@ def train(model, dl, loss_fn, opt, epochs, device):
             loss.backward() # Backward pass
             opt.step() # Update the weights
             running_loss += loss.item() # Accumulate the loss
-        print(f"Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(dl):.4f}")
+        logger.info(f"Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(dl):.4f}")
 
 # Evaluation function
 def evaluate(model, dl, device):
@@ -105,9 +121,9 @@ def evaluate(model, dl, device):
     kappa = cohen_kappa_score(labels, preds)
     hamming = hamming_loss(labels, preds)
 
-    print(f"Weighted Precision: {precision:.4f}, Weighted Recall: {recall:.4f}, Weighted F1: {f1:.4f}")
-    print(f"Accuracy: {accuracy:.4f}, Macro F1: {macro_f1:.4f}, Micro F1: {micro_f1:.4f}")
-    print(f"MCC: {mcc:.4f}, Kappa: {kappa:.4f}, Hamming Loss: {hamming:.4f}")
+    logger.info(f"Weighted Precision: {precision:.4f}, Weighted Recall: {recall:.4f}, Weighted F1: {f1:.4f}")
+    logger.info(f"Accuracy: {accuracy:.4f}, Macro F1: {macro_f1:.4f}, Micro F1: {micro_f1:.4f}")
+    logger.info(f"MCC: {mcc:.4f}, Kappa: {kappa:.4f}, Hamming Loss: {hamming:.4f}")
     
     # Confusion Matrix with label names
     actual_labels = label_enc.inverse_transform(labels)
@@ -121,43 +137,42 @@ def evaluate(model, dl, device):
     plt.show()
     # Create a dictionary to map integer labels back to their original string labels
     int_to_label = {i: label for i, label in enumerate(label_enc.classes_)}
-    print("Integer to Label Mapping:", int_to_label)
+    logger.info(f"Integer to Label Mapping: {int_to_label}")
 
 # Main Function
 def main():
     input_size = df.shape[1] - 1
-    hidden_size = 128
     output_size = len(label_enc.classes_)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # Check if GPU is available and set the device if available
 
-    model = SimpleNN(input_size, hidden_size, output_size).to(device) # Initialize the model and move it to the device
+    model = SimpleNN(input_size, HIDDEN_LAYER_SIZE, output_size).to(device) # Initialize the model and move it to the device
     model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trained_nn_model.pth") # Path to save the model
 
     # Check if model already exists
     if os.path.exists(model_path):
-        print("Loading existing model.")
+        logger.info("Loading existing model.")
         checkpoint = torch.load(model_path)
         model.load_state_dict(checkpoint['model_state_dict'])
-        evaluate(model, DataLoader(NetDataset(df), batch_size=32), device) # Evaluate the model on the entire dataset 
+        evaluate(model, DataLoader(NetDataset(df), batch_size=BATCH_SIZE), device) # Evaluate the model on the entire dataset 
     else:
-        print("Training a new model.")
-        opt = optim.Adam(model.parameters(), lr=0.001)
+        logger.info("Training a new model.")
+        opt = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
         # Define custom weights for the classes
-        print(df['label'].unique())  # Check all unique labels in the DataFrame
-        print(label_enc.classes_)  # This will show the classes after encoding
+        logger.info(f"Unique labels in DataFrame: {df['label'].unique()}")
+        logger.info(f"Label encoder classes: {label_enc.classes_}")
         normal_class_index = label_enc.transform(["normal."])[0]
         class_weights = np.ones(len(label_enc.classes_))  # Start with all weights set to 1
-        class_weights[normal_class_index] = 5.0  # Increase the weight for the "normal" to ensure bad traffic is not detected as normal (oder 5?)
+        class_weights[normal_class_index] = NORMAL_CLASS_WEIGHT  # Increase the weight for the "normal" class to reduce false negatives for attacks
         class_weights_tensor = torch.tensor(class_weights, dtype=torch.float32).to(device) # Move the class weights to the device
 
         # Update the loss function
         loss_fn = nn.CrossEntropyLoss(weight=class_weights_tensor) # Use the custom class weights in the loss function CrossEntropyLoss
 
         # K-Fold Cross-validation
-        kfold = KFold(n_splits=5, shuffle=True, random_state=42) # Initialize KFold with 5 splits and random seed
+        kfold = KFold(n_splits=KFOLD_SPLITS, shuffle=True, random_state=42) # Initialize KFold with 5 splits and random seed
         for fold, (train_idx, val_idx) in enumerate(kfold.split(df)): # Iterate through each fold and split the data
-            print(f'Fold {fold + 1}/{kfold.n_splits}') 
+            logger.info(f'Fold {fold + 1}/{kfold.n_splits}') 
             train_df, val_df = df.iloc[train_idx], df.iloc[val_idx] # Get training and validation data
 
             # Create a sampler based on class imbalance
@@ -165,11 +180,11 @@ def main():
             weights = 1. / class_sample_count[train_df['label']] # Calculate the weights based on the class distribution
             sampler = WeightedRandomSampler(weights=weights, num_samples=len(weights), replacement=True) # Create a WeightedRandomSampler to handle class imbalance
 
-            train_dl = DataLoader(NetDataset(train_df), batch_size=32, sampler=sampler) # Create DataLoader for training data with the sampler
-            val_dl = DataLoader(NetDataset(val_df), batch_size=32) # Create DataLoader for validation data
+            train_dl = DataLoader(NetDataset(train_df), batch_size=BATCH_SIZE, sampler=sampler) # Create DataLoader for training data with the sampler
+            val_dl = DataLoader(NetDataset(val_df), batch_size=BATCH_SIZE) # Create DataLoader for validation data
 
             model.reset_parameters()  # Reset model parameters
-            train(model, train_dl, loss_fn, opt, epochs=5, device=device) # Train the model with the custom loss function for 5 epochs
+            train(model, train_dl, loss_fn, opt, epochs=TRAINING_EPOCHS, device=device) # Train the model with the custom loss function
         evaluate(model, val_dl, device) # Evaluate the model on the validation set
         torch.save({'model_state_dict': model.state_dict()}, model_path) # Save the model after training to model_path
 
