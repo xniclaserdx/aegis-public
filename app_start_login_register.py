@@ -1,6 +1,7 @@
 # Standard library imports
 import csv
 import hashlib
+import logging
 import os
 import random
 import re
@@ -25,6 +26,13 @@ from markupsafe import escape
 from werkzeug.security import check_password_hash, generate_password_hash
 from wtforms import HiddenField, PasswordField, StringField
 from wtforms.validators import DataRequired, Email, Length
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 class RegistrationForm(FlaskForm): # Form for user registration using WTForms
@@ -54,12 +62,18 @@ RATE_LIMIT = {} # Rate limit dictionary
 RATE_LIMIT_PERIOD = 60  # Rate limit period in seconds
 MAX_ATTEMPTS = 15 # Maximum number of attempts before rate limiting
 
-# CSFR Protection
+# CSRF Protection
 csrf = CSRFProtect(app) # CSRF protection for the application
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback_secret_key') # Secret key for the application
+
+# Secret key must be set via environment variable for security
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable must be set")
+app.config['SECRET_KEY'] = SECRET_KEY
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY']) # Serializer for the secret key
 
-app.config['CSRF_ENABLED'] = os.getenv('CSRF_ENABLED') == 'True' # Enable CSRF protection
+# CSRF protection enabled by default (can be disabled for testing only)
+app.config['CSRF_ENABLED'] = os.getenv('CSRF_ENABLED', 'True') == 'True'
 
 # Session configuration 
 app.config['SESSION_COOKIE_SECURE'] = True # Secure session cookie
@@ -166,10 +180,6 @@ def get_session_email(cookie_value):
         return session_data.get('email')
     return None
 
-def is_valid_email(email):
-    """Check if the provided email address is valid."""
-    return re.match(r"[^@]+@[^@]+\.[^@]+", email) is not None
-
 def send_email(email, subject, body, is_html=False):
         """Send an email to the user."""
         if not is_valid_email(email):
@@ -220,7 +230,7 @@ def log_event(message): # Function to log events to a text file
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             file.write(f'[{timestamp}] {message}\n')
     except Exception as e:
-        print(f"Failed to log event: {str(e)}")
+        logger.error(f"Failed to log event: {str(e)}")
 
 def get_user_attribute(user_data, attribute):
     try:
@@ -339,8 +349,8 @@ def is_email_registered(email):
                     log_event(f'Registration attempt with already registered email: {email}')
                     flash('Email address already registered.', 'error')
                     return True
-    except:
-        print("Failed to read user data.")
+    except Exception as e:
+        logger.error(f"Failed to read user data: {str(e)}")
     return False
 
 def register_user(email, password):
@@ -353,8 +363,8 @@ def register_user(email, password):
             writer.writerow([email, hashed_password, "user", is_verified])
         log_event(f'New registration for {email} with role user')
         return True
-    except:
-        print("Failed to write user data.")
+    except Exception as e:
+        logger.error(f"Failed to write user data: {str(e)}")
         log_event(f'Failed to write user data at {datetime.now()}')
         return False
 
@@ -373,8 +383,8 @@ def get_users_from_csv():
         with open(CSV_FILE, "r") as file:
             reader = csv.reader(file)
             return [create_user_dict(user) for user in reader]
-    except:
-        print("Failed to read user data.")
+    except Exception as e:
+        logger.error(f"Failed to read user data: {str(e)}")
         return None
 
 def authenticate_user(users, email, password):
@@ -528,8 +538,8 @@ def remove_reset_token(reset_token):
 
 def shutdown_webserver(message):
     """Shutdown the web app and log the error message. Is called in case of an critical error to prevent further damage."""
-    print(f"{time.time()} - {message}")
-    print("Application safety not guaranteed. Please check the log file for more information.")
+    logger.critical(f"{message}")
+    logger.critical("Application safety not guaranteed. Please check the log file for more information.")
     log_event(f"Shutting down the application. {message}")
     os._exit(1)
         

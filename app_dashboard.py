@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 import threading
 import time
@@ -17,6 +18,13 @@ from torch.utils.data import Dataset
 
 from app_start_login_register import (get_session_email, get_session_role,
                                       rate_limit, role_required)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 dashboard_routes = Blueprint("dashboard_routes",__name__)
 socketio = SocketIO()
@@ -204,29 +212,29 @@ try:
     le_encoders = {col: LabelEncoder() for col in ['protocol_type', 'service', 'flag']}  # Initialize label encoders for categorical columns (non-numeric)
     for col, le in le_encoders.items():
         df[col] = le.fit_transform(df[col]).astype('int8')  # Fit, transform, and downcast label encoder
-except:
-    print("Error during label transformation. Please check the dataset columns and types.")
+except Exception as e:
+    logger.error(f"Error during label transformation: {str(e)}")
     exit(1)
 
 try:
     label_enc = LabelEncoder()  # Initialize label encoder for the target column
     df['label'] = label_enc.fit_transform(df['label']).astype('int8')  # Encode labels to integers and downcast
-except:
-    print("Error during label encoding. Please check the dataset columns and types.")
+except Exception as e:
+    logger.error(f"Error during label encoding: {str(e)}")
     exit(1)
 # Copy data before standardization
 try:
     df_copy = df.copy(deep=False)
-except:
-    print("Error during data copy. Please check the dataset columns and types.")
+except Exception as e:
+    logger.error(f"Error during data copy: {str(e)}")
     exit(1)
     
 # Vectorized standard scaling needed as preprocessing step for the neural network
 try:
     scaler = StandardScaler() 
     df[df.columns[:-1]] = scaler.fit_transform(df[df.columns[:-1]]) # Fit and transform the standard scaler with all columns except the target column
-except:
-    print("Error during standard scaling. Please check the dataset columns and types.")
+except Exception as e:
+    logger.error(f"Error during standard scaling: {str(e)}")
     exit(1)
 
 # If new data is received, it can be standardized with the same scaler instance
@@ -240,8 +248,8 @@ try:
     checkpoint = torch.load(model_path, map_location=torch.device('cpu')) # Load the model checkpoint
     model.load_state_dict(checkpoint['model_state_dict']) # Load the model state dictionary which contains the model parameters
     model.eval()  # Set the model to evaluation mode
-except:
-    print("Error during model loading. Please check the model file.")
+except Exception as e:
+    logger.error(f"Error during model loading: {str(e)}")
     exit(1)
 
 # Create a global simulation object to manage the simulation state
