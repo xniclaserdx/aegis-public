@@ -1,0 +1,17 @@
+Flask
+Flask-SocketIO
+Flask-Talisman
+Flask-WTF
+Werkzeug
+itsdangerous
+python-dotenv
+MarkupSafe
+WTForms
+pandas
+scikit-learn
+torch
+numpy
+matplotlib
+seaborn
+tqdm
+email_validator

@@ -1,0 +1,119 @@
+stages:
+  - code_quality
+  - security
+  - test
+
+variables:
+  PYTHON_VERSION: "3.12.7"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip_cache"
+
+
+# Code Quality Checks (Flake8, Black, Isort, AutoPEP8, Pylint)
+code_quality_flake8:
+  stage: code_quality
+  image: python:$PYTHON_VERSION
+  script:
+    - pip install flake8
+    - flake8 . | tee flake8-report.txt || true
+  allow_failure: true
+  artifacts:
+    paths:
+      - flake8-report.txt
+    expire_in: 1 hour
+
+code_quality_isort:
+  stage: code_quality
+  image: python:$PYTHON_VERSION
+  script:
+    - pip install isort
+    - isort --check-only . | tee isort-report.txt || true
+  allow_failure: true
+  artifacts:
+    paths:
+      - isort-report.txt
+    expire_in: 1 hour
+
+code_quality_autopep8:
+  stage: code_quality
+  image: python:$PYTHON_VERSION
+  script:
+    - pip install autopep8
+    - autopep8 --diff --recursive . | tee autopep8-report.txt || true
+  allow_failure: true
+  artifacts:
+    paths:
+      - autopep8-report.txt
+    expire_in: 1 hour
+
+# Linting with Pylint
+code_quality_pylint:
+  stage: code_quality
+  image: python:$PYTHON_VERSION
+  script:
+    - pip install pylint
+    - pylint **/*.py | tee pylint-report.txt || true
+  artifacts:
+    paths:
+      - pylint-report.txt
+    expire_in: 1 hour
+
+# Security Checks (Bandit)
+security_bandit:
+  stage: security
+  image: python:$PYTHON_VERSION
+  script:
+    # Install Bandit
+    - pip install bandit
+    # Run Bandit security analysis
+    - bandit -r . -ll | tee bandit-report.txt || true
+  allow_failure: true
+  artifacts:
+    paths:
+      - bandit-report.txt
+    expire_in: 1 hour
+
+# Security Check (Pip-Audit)
+security_pip_audit:
+  stage: security
+  image: python:$PYTHON_VERSION
+  script:
+    # Install Pip-Audit
+    - pip install pip-audit
+    # Run Pip-Audit security check
+    - pip-audit | tee pip-audit-report.txt || true
+  allow_failure: true
+  artifacts:
+    paths:
+      - pip-audit-report.txt
+    expire_in: 1 hour
+
+# Security Check (Safety)
+security_safety:
+  stage: security
+  image: python:$PYTHON_VERSION
+  script:
+    # Install Safety
+    - pip install safety
+    # Run Safety dependency scanning
+    - safety check | tee safety-report.txt || true
+  allow_failure: true
+  artifacts:
+    paths:
+      - safety-report.txt
+    expire_in: 1 hour
+
+# Testing with unittest module
+test:
+  stage: test
+  image: python:$PYTHON_VERSION
+  script:
+    - pip install --no-cache-dir coverage
+    - pip install -r requirements.txt
+    - python -m unittest app_unittest.py > result.log || echo "Tests failed"
+    - tail -n 20 result.log
+  allow_failure: true
+  artifacts:
+    paths:
+      - result.log
+    expire_in: 1 week
+

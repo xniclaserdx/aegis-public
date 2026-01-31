@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sortable and Filterable Table</title>
+
+    <!-- Link to DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.css">
+
+    <!-- Additional Styles -->
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: #f3f4f6;
+        }
+
+        table {
+            width: 100%;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        th {
+            white-space: nowrap;
+            font-weight: bold;
+            text-align: center;
+            padding: 12px;
+        }
+
+        .header-row th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        td {
+            padding: 12px;
+            text-align: left;
+            font-size: 1em;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        tr:hover {
+            background-color: rgba(75, 192, 192, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <table id="data-table" class="table table-striped table-bordered" style="width:100%">
+        <thead>
+            <!-- Erste Zeile für die Spaltenüberschriften -->
+            <tr class="header-row">
+                {% for col in df_last_120.columns %}
+                <th>{{ col }}</th>
+                {% endfor %}
+            </tr>
+            <!-- Zweite Zeile für die Dropdown-Filter -->
+            <tr>
+                {% for col in df_last_120.columns %}
+                <th>
+                    <select class="filter-dropdown">
+                        <option value="">{{ col }}</option>
+                    </select>
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in df_last_120.itertuples() %}
+            <tr>
+                {% for value in row[1:] %}
+                <td>{{ value }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <form action="/dashboard" method="get">
+        <button type="submit">&larr; Back to Dashboard</button>
+    </form>
+
+    <!-- jQuery und DataTables JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var table = $('#data-table').DataTable({
+                "pageLength": 10,
+                "ordering": true,
+                "searching": true,
+                initComplete: function () {
+                    // Filter für jede Spalte hinzufügen
+                    this.api().columns().every(function () {
+                        var column = this;
+                        var select = $('select', column.header());
+                        column.data().unique().sort().each(function (d, j) {
+                            select.append('<option value="' + d + '">' + d + '</option>')
+                        });
+                        select.on('change', function () {
+                            var val = $.fn.dataTable.util.escapeRegex($(this).val());
+                            column.search(val ? '^' + val + '$' : '', true, false).draw();
+                        });
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>
