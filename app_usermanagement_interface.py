@@ -68,7 +68,7 @@ def usermanagement() -> str:
     reader = csv.reader(file)
     for column in reader:
         loaded_data.append(column)
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "appoverlay_usermanagement.html")) as f:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates/usermanagement.html")) as f:
         template = f.read()
     return render_template_string(template, data=loaded_data)
 

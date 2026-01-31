@@ -272,7 +272,7 @@ def initialize_simulation(user_uuid: str) -> dict:
     return simulation
 
 def get_dashboard_template() -> str:
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'appoverlay_dashboard.html')) as f:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates/dashboard.html')) as f:
         return f.read()
 
 def decode_categorical_columns(df, le_encoders):
@@ -289,7 +289,7 @@ def reorder_columns(df):
     return df[cols]
 
 def render_template_with_table(table_html, df_last_120):
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "appoverlay_datatable.html")) as f:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates/datatable.html")) as f:
         template = f.read()
     return render_template_string(template, table_html=table_html, df_last_120=df_last_120)
 
@@ -397,7 +397,7 @@ def model_evaluation():
             sha256_hash_calc = calculate_sha256(model_file_path) # Calculate the SHA-256 hash of the model file
         except:
             return "Error during calculating hash."
-        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "appoverlay_modelinfo.html")) as f: # Open the model evaluation template
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates/modelinfo.html")) as f: # Open the model evaluation template
             template = f.read()
         return render_template_string(template, sha256_hash = sha256_hash_calc) # Return the model evaluation template with the SHA-256 hash
     except:

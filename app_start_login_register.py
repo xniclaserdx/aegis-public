@@ -401,7 +401,7 @@ def initiate_verification(user, form):
 
 def prepare_verification_response(form):
     """Prepare the response for the verification process."""
-    return make_response(render_template('appoverlay_otp.html', form=form))
+    return make_response(render_template('otp.html', form=form))
 
 def generate_coupon_cookie(response):
     """Generate a coupon cookie and set it in the response."""
@@ -560,7 +560,7 @@ def register():
                 return "Currently unavailable.", 503
 
             return f"Registration successful. Go to <a href='{url_for('login')}'>login</a> page.", 200
-        return render_template('appoverlay_register.html', form=form)
+        return render_template('register.html', form=form)
     except:
         shutdown_webserver("Failed to register user.")
 
@@ -586,7 +586,7 @@ def login():
                 log_event(f'Failed login attempt for email: {email}')
                 return "Invalid password or user already logged in.", 401
         else:
-            return render_template('appoverlay_login.html', form=form)
+            return render_template('login.html', form=form)
     except:
         shutdown_webserver("Failed to log in user.")
 
@@ -612,7 +612,7 @@ def verify_code():
                 return login_user(response, verification_coupon)
             else:
                 return "Invalid verification code.", 401
-        return render_template('appoverlay_otp.html', form=form)
+        return render_template('otp.html', form=form)
     except:
         shutdown_webserver("Failed to verify code.")
 
@@ -670,7 +670,7 @@ def reset_password_request():
             if not user_exists(users, email):
                 return "Email address not found.", 406
             return process_reset_request(email)
-        return render_template('appoverlay_resetpassword.html', form=form)
+        return render_template('resetpassword.html', form=form)
     except:
         shutdown_webserver("Failed to reset password.")
 
@@ -694,7 +694,7 @@ def reset_password(token):
             remove_reset_token(reset_token)
             log_event(f'Password successfully reset for {email}')
             return redirect(url_for('login'))
-        return render_template('appoverlay_newpassword.html', form=form)
+        return render_template('newpassword.html', form=form)
     except:
         shutdown_webserver("Failed to reset password.")
 

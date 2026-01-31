@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS IDS Simulation - Usermanagement</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/usermanagement.css') }}">
+</head>
+<body>
+<div class="container">
+    <nav class="sidebar">
+        <button onclick="removeUsers()">Remove Users</button>
+        <button onclick="changeRole()">Change Role</button>
+        <button id="toggleDarkMode">Toggle Dark Mode</button>
+        <button onclick="location.href='/dashboard'">Leave Usermangement</button>
+    </nav>
+    <header class="header">
+        User Management
+    </header>
+    <div class="table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Selected</th>
+                </tr>
+            </thead>
+            <tbody id="data">
+                {% for row in data %}
+                <tr>
+                    <td>{{ row[0] }}</td>
+                    <td>{{ row[2] }}</td>
+                    <td class="selection"><input type="checkbox" class="user-checkbox" value="{{ row[0] }}"></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<script src="{{ url_for('static', filename='js/usermanagement.js') }}"></script>
+</body>
+</html>
