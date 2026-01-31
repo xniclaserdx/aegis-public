@@ -14,6 +14,7 @@ This repository is a sanitized public version of a university project.
 
 - [Overview](#overview)
 - [Features](#features)
+- [Project Structure](#project-structure)
 - [Technology Stack](#technology-stack)
 - [Prerequisites](#prerequisites)
 - [Setup Instructions](#setup-instructions)
@@ -57,6 +58,60 @@ The system combines machine learning with modern web technologies to deliver a s
 - **KDD Cup 1999 Dataset**: Trained on comprehensive network attack data
 - **Real-Time Predictions**: Instant anomaly classification
 - **Model Retraining**: Capability to retrain with updated data
+
+## Project Structure
+
+The project follows a well-organized structure separating concerns for better maintainability:
+
+```
+aegis-public/
+├── templates/              # HTML templates
+│   ├── dashboard.html      # Main dashboard interface
+│   ├── login.html          # User login page
+│   ├── register.html       # User registration page
+│   ├── otp.html           # Two-factor authentication page
+│   ├── resetpassword.html  # Password reset request page
+│   ├── newpassword.html    # New password setup page
+│   ├── usermanagement.html # Admin user management interface
+│   ├── datatable.html      # Network traffic data table view
+│   └── modelinfo.html      # ML model information and metrics
+│
+├── static/                 # Static assets
+│   ├── css/               # Stylesheets
+│   │   ├── dashboard.css  # Dashboard styles
+│   │   ├── auth.css       # Authentication page styles
+│   │   ├── register.css   # Registration page styles
+│   │   ├── usermanagement.css # User management styles
+│   │   ├── datatable.css  # Data table styles
+│   │   └── modelinfo.css  # Model info styles
+│   │
+│   ├── js/                # JavaScript files
+│   │   ├── dashboard.js   # Dashboard functionality
+│   │   ├── usermanagement.js # User management logic
+│   │   ├── datatable.js   # Data table interactions
+│   │   └── modelinfo.js   # Model info scripts
+│   │
+│   └── favicon.ico        # Application icon
+│
+├── app_webserver.py       # Main Flask application server
+├── app_dashboard.py       # Dashboard logic and routes
+├── app_start_login_register.py # Authentication logic
+├── app_usermanagement_interface.py # User management routes
+├── backend_train.py       # ML model training script
+├── trained_nn_model.pth   # Pre-trained neural network model
+├── kddcup_data_corrected.csv # Training dataset
+├── users_datastore.csv    # User database
+├── requirements.txt       # Python dependencies
+└── README.md             # This file
+```
+
+### File Organization Benefits
+
+- **Separation of Concerns**: HTML templates, CSS styles, and JavaScript logic are separated into dedicated directories
+- **Maintainability**: Easier to locate and modify specific components
+- **Reusability**: Shared styles and scripts can be referenced across multiple pages
+- **Performance**: Browsers can cache static assets more effectively
+- **Scalability**: Clear structure makes it easier to add new features
 
 ## Technology Stack
 

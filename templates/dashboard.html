@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS IDS Simulation Prototype</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="title">AEGIS Intelligent IDS Simulation Prototype</div>
+        <div class="sidebar">
+            <div class="user-info" style="text-align: center; margin-bottom: 20px;">
+                <p style="font-size: 1.2em; font-weight: bold;">Welcome!</p>
+                <p id="userEmail" style="font-size: 1em">user@example.com</p>
+                <p id="userRole" style="font-size: 0.9em">Role: User</p>
+            </div>
+            <button>Reset loaded data</button>
+            <button>Start Simulation</button>
+            <button>Stop Simulation</button>
+            <button onclick="location.href='/received_data'">Open received data</button>
+            <button onclick="location.href='/model_evaluation'">Show model evaluation</button>
+            <button id="toggleDarkMode">Toggle Dark Mode</button>
+            <button onclick="location.href='/logout'"> Logout</button>
+        </div>
+        <div class="stats">
+            <div class="stat" style="color: rgb(0, 188, 0);">
+                <h4>Good Traffic Count</h4>
+                <p id="goodTrafficCount">0</p>
+            </div>
+            <div class="stat" style="color: rgb(255, 35, 35);">
+                <h4>Bad Traffic Count</h4>
+                <p id="badTrafficCount">0</p>
+            </div>
+            <div class="stat" id="badTrafficPercentageStat">
+                <h4>Percentage of Bad Traffic</h4>
+                <p id="badTrafficPercentage">0%</p>
+            </div>
+        </div>
+        <div class="content">
+            <div class="chart">
+                <h3>Source and Destination Bytes Over Time</h3>
+                <canvas id="bytesChart"></canvas>
+            </div>
+            <div class="chart">
+                <h3>Predicted Labels Distribution</h3>
+                <canvas id="pieChart"></canvas>
+            </div>
+        </div>
+        <div class="table">
+            <h3>Data Table</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Duration</th>
+                        <th>Protocol Type</th>
+                        <th>Service</th>
+                        <th>Flag</th>
+                        <th>Source Bytes</th>
+                        <th>Destination Bytes</th>
+                        <th>Logged In</th>
+                        <th>Count</th>
+                        <th>Service Count</th>
+                        <th>Same Service Rate</th>
+                        <th>Different Service Rate</th>
+                        <th>Service Different Host Rate</th>
+                        <th>Destination Host Count</th>
+                        <th>Destination Host Service Count</th>
+                        <th>Predicted Label</th>
+                        <th>Real Label</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    <!-- Data rows will be appended here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+
+</html>
