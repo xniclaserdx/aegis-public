@@ -476,7 +476,6 @@ class TestBackendTrain(unittest.TestCase):
         dataloader = DataLoader(dataset, batch_size=32, shuffle=False)
         evaluate(model, dataloader, device)
         # No assertion here, just ensuring the function runs without errors
-""" 
 
 if __name__ == "__main__":
     unittest.main()
