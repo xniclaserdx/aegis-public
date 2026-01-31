@@ -60,9 +60,6 @@ The system combines machine learning with modern web technologies to deliver a s
 - **Model Retraining**: Capability to retrain with updated data
 
 ## Project Structure
-
-The project follows a well-organized structure separating concerns for better maintainability:
-
 ```
 aegis-public/
 ├── templates/              # HTML templates
@@ -104,14 +101,6 @@ aegis-public/
 ├── requirements.txt       # Python dependencies
 └── README.md             # This file
 ```
-
-### File Organization Benefits
-
-- **Separation of Concerns**: HTML templates, CSS styles, and JavaScript logic are separated into dedicated directories
-- **Maintainability**: Easier to locate and modify specific components
-- **Reusability**: Shared styles and scripts can be referenced across multiple pages
-- **Performance**: Browsers can cache static assets more effectively
-- **Scalability**: Clear structure makes it easier to add new features
 
 ## Technology Stack
 
