@@ -1,6 +1,7 @@
 # Codename AEGIS
 
 **Advanced Enterprise Guardian for Intrusion Security**
+
 This repository is a sanitized public version of a university project.
 
 [![Live Demo](https://img.shields.io/badge/demo-live-success)](https://bcsm-aegis.tech)
