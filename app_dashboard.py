@@ -29,6 +29,11 @@ logger = logging.getLogger(__name__)
 dashboard_routes = Blueprint("dashboard_routes",__name__)
 socketio = SocketIO()
 
+# Configuration constants
+LAST_ROWS_BUFFER_SIZE = 120  # Number of recent rows to keep in memory for data table display
+ATTACK_SAMPLING_PROBABILITY = 0.08  # Probability of sampling attack traffic (8%)
+MODEL_HIDDEN_LAYER_SIZE = 128  # Hidden layer size for neural network model
+
 # Enable X-Sendfile to serve static files via the web server (e.g., Nginx)
 model_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trained_nn_model.pth")
 
@@ -70,7 +75,7 @@ class DataSimulator:
         self.label_enc = label_enc # Label encoder for the target column
         self.le_encoders = le_encoders # Label encoders for the categorical columns
         self.scaler = scaler # Standard scaler for the dataset
-        self.last_120_rows = deque(maxlen=120)  # Using deque for FIFO efficiency
+        self.last_120_rows = deque(maxlen=LAST_ROWS_BUFFER_SIZE)  # Using deque for FIFO efficiency
         self.normal_count = 0 # Counter for normal traffic
         self.bad_count = 0 # Counter for bad traffic (attacks)
         self.label_mapping = {i: label for i, label in enumerate(label_enc.classes_)}  # Initialize once
@@ -96,7 +101,8 @@ class DataSimulator:
                 return None
 
     def get_random_row(self):
-        if np.random.rand() < 0.08:
+        """Get a random row from the dataset with 8% probability of attack traffic."""
+        if np.random.rand() < ATTACK_SAMPLING_PROBABILITY:
             row = self.df_attack.sample(n=1).iloc[0]
         else:
             row = self.df_normal.sample(n=1).iloc[0]
@@ -139,7 +145,8 @@ class DataSimulator:
             new_row['predicted_label'] = predicted_label_str # Update the predicted label in the new row
             new_row['label'] = self.label_enc.inverse_transform([int(original_row['label'])])[0] # Update the real label in the new row
             self.last_120_rows.append(new_row) # Append the new row to the last 120 rows
-        except:
+        except Exception as e:
+            logger.error(f"Error updating last 120 rows: {str(e)}")
             return None
 
     def prepare_update_data(self, current_time: str, original_row: pd.Series) -> dict:
@@ -243,7 +250,7 @@ except Exception as e:
 # Load neural network model trained_nn_model.pth
 try:
     model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trained_nn_model.pth")
-    model = SimpleNN(input_size=df.shape[1] - 1, hidden_size=128, output_size=len(label_enc.classes_))
+    model = SimpleNN(input_size=df.shape[1] - 1, hidden_size=MODEL_HIDDEN_LAYER_SIZE, output_size=len(label_enc.classes_))
 
     checkpoint = torch.load(model_path, map_location=torch.device('cpu')) # Load the model checkpoint
     model.load_state_dict(checkpoint['model_state_dict']) # Load the model state dictionary which contains the model parameters
@@ -302,17 +309,19 @@ def render_template_with_table(table_html, df_last_120):
     return render_template_string(template, table_html=table_html, df_last_120=df_last_120)
 
 def calculate_sha256(file_path):
+    """Calculate the SHA-256 hash of a file."""
     try:
-        """Calculate the SHA-256 hash of a file."""
         sha256_hash = hashlib.sha256() 
         with open(file_path, "rb") as f:
             for byte_block in iter(lambda: f.read(4096), b""):
                 sha256_hash.update(byte_block)
         return sha256_hash.hexdigest()
-    except:
+    except Exception as e:
+        logger.error(f"Error during SHA-256 calculation: {str(e)}")
         return "Error during SHA-256 calculation. Please check the file path."
 
 def get_user_info(user_data_from_session: str) -> dict:
+    """Retrieve user information from session data."""
     return {
         'email': get_session_email(user_data_from_session),
         'role': get_session_role(user_data_from_session)
@@ -342,45 +351,54 @@ def reset_user_data(simulation: dict) -> None:
 @dashboard_routes.route('/user_info')
 @role_required('user','admin')
 def user_info() -> jsonify:
+    """Return user information as JSON."""
     try:
         user_data_from_session = request.cookies.get("logged_in")
         user_data = get_user_info(user_data_from_session)
         return jsonify(user_data)
-    except:
+    except Exception as e:
+        logger.error(f"Error during user information retrieval: {str(e)}")
         return "Error during user information retrieval. Please check the user information logic."
 
 @socketio.on('start_simulation')
 @role_required('user','admin')
 def start_simulation() -> None:
+    """Start the network traffic simulation for the current user."""
     try:
         simulation = map_uuid_to_simulation(request.cookies.get('logged_in'))
         start_user_simulation(simulation)
-    except:
+    except Exception as e:
+        logger.error(f"Error during simulation start: {str(e)}")
         return "Error during simulation start. Please check the simulation logic."
 
 @socketio.on('stop_simulation')
 @role_required('user','admin')
 def stop_simulation() -> None:
+    """Stop the network traffic simulation for the current user."""
     try:
         simulation = map_uuid_to_simulation(request.cookies.get('logged_in'))
         stop_user_simulation(simulation)
-    except:
+    except Exception as e:
+        logger.error(f"Error during simulation stop: {str(e)}")
         return "Error during simulation stop. Please check the simulation logic."
 
 
 @socketio.on('reset_data')
 @role_required('user','admin')
 def reset_data() -> None:
+    """Reset simulation data for the current user."""
     try:
         simulation = map_uuid_to_simulation(request.cookies.get('logged_in'))
         reset_user_data(simulation)
-    except:
+    except Exception as e:
+        logger.error(f"Error during data reset: {str(e)}")
         return "Error during data reset. Please check the data reset logic."
 
 
 @dashboard_routes.route('/received_data')
 @role_required('user','admin')
 def open_datatable():
+    """Display the data table view with last 120 network traffic rows."""
     try:
         simulation = map_uuid_to_simulation(request.cookies.get('logged_in'))
         if simulation:
@@ -393,39 +411,45 @@ def open_datatable():
             df_last_120 = reorder_columns(df_last_120)
             table_html = df_last_120.to_html(classes="table table-striped table-bordered", index=False)
             return render_template_with_table(table_html, df_last_120)
-    except:
+    except Exception as e:
+        logger.error(f"Error during data retrieval: {str(e)}")
         return "Error during data retrieval. Please check the data retrieval logic."
 
 
 @dashboard_routes.route('/model_evaluation')
 @role_required('user','admin')
 def model_evaluation():
+    """Display model evaluation information and architecture."""
     try:
         try:
             sha256_hash_calc = calculate_sha256(model_file_path) # Calculate the SHA-256 hash of the model file
-        except:
+        except Exception as e:
+            logger.error(f"Error during hash calculation: {str(e)}")
             return "Error during calculating hash."
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "appoverlay_modelinfo.html")) as f: # Open the model evaluation template
             template = f.read()
         return render_template_string(template, sha256_hash = sha256_hash_calc) # Return the model evaluation template with the SHA-256 hash
-    except:
+    except Exception as e:
+        logger.error(f"Error during model evaluation: {str(e)}")
         return "Error during model evaluation. Please check the model evaluation logic."
     
 @dashboard_routes.route('/download_model')
 @role_required('user','admin')
 def download_model():
+    """Download the model file."""
     try:
-        """Download the model file."""
         if os.path.exists(model_file_path):
             return send_file(model_file_path, as_attachment=True, download_name=os.path.basename(model_file_path)) # Send the model file as an attachment
         else:
             return "File not found", 500
-    except:
+    except Exception as e:
+        logger.error(f"Error during model download: {str(e)}")
         return "Error during model download. Please check the model download logic."
     
 @dashboard_routes.route('/dashboard')
 @role_required('user','admin')
 def dashboard() -> str:
+    """Display the main dashboard view."""
     try:
         user_uuid = request.cookies.get('logged_in')
         simulation = map_uuid_to_simulation(user_uuid)
@@ -434,7 +458,8 @@ def dashboard() -> str:
         else:
             initialize_simulation(user_uuid)
             return render_template_string(get_dashboard_template())
-    except:
+    except Exception as e:
+        logger.error(f"Error during dashboard initialization: {str(e)}")
         return "Error during dashboard initialization. Please check the dashboard template."
 
 if __name__ == '__main__': # Run the application if the script is executed directly (not imported)

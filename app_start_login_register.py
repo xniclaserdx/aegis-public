@@ -58,9 +58,17 @@ load_dotenv()
 # Flask app setup
 app = Flask(__name__, template_folder='.')
 
+# Rate limiting configuration
 RATE_LIMIT = {} # Rate limit dictionary
 RATE_LIMIT_PERIOD = 60  # Rate limit period in seconds
 MAX_ATTEMPTS = 15 # Maximum number of attempts before rate limiting
+
+# Session and authentication constants
+SESSION_LIFETIME_SECONDS = 1800  # 30 minutes
+VERIFICATION_CODE_MIN = 100000  # 6-digit verification code minimum
+VERIFICATION_CODE_MAX = 999999  # 6-digit verification code maximum
+VERIFICATION_CODE_EXPIRY_SECONDS = 120  # 2 minutes
+PASSWORD_RESET_TOKEN_EXPIRY_SECONDS = 300  # 5 minutes
 
 # CSRF Protection
 csrf = CSRFProtect(app) # CSRF protection for the application
@@ -80,7 +88,7 @@ app.config['SESSION_COOKIE_SECURE'] = True # Secure session cookie
 app.config['SESSION_COOKIE_HTTPONLY'] = True # HTTP only session cookie
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax' # SameSite cookie policy
 app.config['SESSION_COOKIE_NAME'] = '__Secure-session' # Session cookie name
-app.config['PERMANENT_SESSION_LIFETIME'] = 1800 # Session lifetime in seconds
+app.config['PERMANENT_SESSION_LIFETIME'] = SESSION_LIFETIME_SECONDS # Session lifetime in seconds
 
 # Pepper for password hashing
 PEPPER = os.getenv("PASSWORD_PEPPER")
