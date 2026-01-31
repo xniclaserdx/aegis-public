@@ -143,7 +143,8 @@ def session_garbage_collector_thread():
                 reset_password_tokens.remove(reset_token)
 
             time.sleep(60) # Check every 60 seconds
-    except:
+    except Exception as e:
+        logger.error(f"Session garbage collector failed: {str(e)}")
         shutdown_webserver("Failed to run session garbage collector thread.")
 
 # Start the session garbage collector thread as a daemon
@@ -154,7 +155,7 @@ def extend_session(response):
     """Extend the session duration."""
     cookie = request.cookies.get('logged_in') # Get the session cookie
     response.set_cookie('logged_in', cookie, secure=True,
-                                httponly=True, samesite='Lax', expires=time.time() + 1800) # Extend the session duration 
+                                httponly=True, samesite='Lax', expires=time.time() + SESSION_LIFETIME_SECONDS) # Extend the session duration 
     return response # Return the response
 
 def is_valid_email(email):
@@ -423,9 +424,9 @@ def prepare_verification_response(form):
 
 def generate_coupon_cookie(response):
     """Generate a coupon cookie and set it in the response."""
-    coupon_cookie_value = str(random.randint(100000, 999999))
+    coupon_cookie_value = str(random.randint(VERIFICATION_CODE_MIN, VERIFICATION_CODE_MAX))
     response.set_cookie('coupon', coupon_cookie_value, secure=True,
-                        httponly=False, samesite='Lax', expires=time.time() + 120)
+                        httponly=False, samesite='Lax', expires=time.time() + VERIFICATION_CODE_EXPIRY_SECONDS)
     return coupon_cookie_value
 
 def generate_session_token():
@@ -434,7 +435,7 @@ def generate_session_token():
 
 def generate_verification_code():
     """Generate a random verification code."""
-    return str(random.randint(100000, 999999))
+    return str(random.randint(VERIFICATION_CODE_MIN, VERIFICATION_CODE_MAX))
 
 def store_verification_coupon(user, coupon_cookie_value, session_token, verification_code):
     """Store the verification coupon in the global coupon store."""
@@ -483,14 +484,15 @@ def login_user(response, verification_coupon):
 def generate_reset_token(email):
     """Generate a reset token for the user."""
     try:
-        token = hashlib.sha256((email + app.config['SECRET_KEY']+ str(random.randint(100000, 999999))).encode()).hexdigest()
+        token = hashlib.sha256((email + app.config['SECRET_KEY']+ str(random.randint(VERIFICATION_CODE_MIN, VERIFICATION_CODE_MAX))).encode()).hexdigest()
         reset_token = {
             'token': token,
             'email': email,
-            'expiry': time.time() + 300
+            'expiry': time.time() + PASSWORD_RESET_TOKEN_EXPIRY_SECONDS
         } 
         return reset_token
-    except:
+    except Exception as e:
+        logger.error(f"Failed to generate reset token: {str(e)}")
         shutdown_webserver("Failed to generate reset token.")
 
 def validate_reset_email(email):
