@@ -320,14 +320,6 @@ If you forget your password:
 
 ## Screenshots
 
-### Authentication Flow
-
-**Registration with Email Verification**
-![Registration](https://codi.ide3.de/uploads/upload_38ec9f191e9823e709caac5c4798ebc9.png)
-
-**Login Interface**
-![Login](https://codi.ide3.de/uploads/upload_2a2bdc3ea9b82663088a8937dfd31199.png)
-
 ### Main Dashboard
 
 **Real-Time Network Monitoring**
