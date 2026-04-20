@@ -318,32 +318,10 @@ If you forget your password:
 3. Check your email for the reset link
 4. Follow the link and set a new password
 
-## Screenshots
-
 ### Main Dashboard
 
 **Real-Time Network Monitoring**
 ![Dashboard](https://codi.ide3.de/uploads/upload_94b2ff9a6ea68a587c6522fdedab020d.png)
-
-**Network Traffic Data Table**
-![Data Table](https://codi.ide3.de/uploads/upload_3caaa9bc871d2f1141c6cb41c1babdcd.png)
-
-**Admin User Management Panel**
-![Admin Panel](https://codi.ide3.de/uploads/upload_c7f42d396855cee9897eb2764de34faa.png)
-
-**Model Architecture Overview**
-![Model Overview](https://codi.ide3.de/uploads/upload_97ff932bfd3743edf6c0b6c1df815cf9.png)
-
-### Password Reset Workflow
-
-**Request Password Reset**
-![Reset Request](https://codi.ide3.de/uploads/upload_f77a9c6d7029b020249482517525ceb6.png)
-
-**Email Verification**
-![Email Verification](https://codi.ide3.de/uploads/upload_8e138172b2bebf99fa8c8afe466a6b64.png)
-
-**Set New Password**
-![New Password](https://codi.ide3.de/uploads/upload_e3600bd8febb0a2909627566137f6f63.png)
 
 ## Model Training
 
