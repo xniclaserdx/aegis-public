@@ -325,9 +325,6 @@ If you forget your password:
 **Registration with Email Verification**
 ![Registration](https://codi.ide3.de/uploads/upload_38ec9f191e9823e709caac5c4798ebc9.png)
 
-**Two-Factor Authentication**
-![2FA](https://codi.ide3.de/uploads/upload_4563924ab4a265826264529ea9141197.png)
-
 **Login Interface**
 ![Login](https://codi.ide3.de/uploads/upload_2a2bdc3ea9b82663088a8937dfd31199.png)
 
