@@ -40,19 +40,25 @@ cols = ['duration', 'protocol_type', 'service', 'flag', 'src_bytes', 'dst_bytes'
         'dst_host_diff_srv_rate', 'dst_host_same_src_port_rate', 'dst_host_srv_diff_host_rate', 'dst_host_serror_rate', 
         'dst_host_srv_serror_rate', 'dst_host_rerror_rate', 'dst_host_srv_rerror_rate', 'label']
 
-df = pd.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "kddcup_data_corrected.csv"), names=cols) 
+label_enc = None
 
-# Optimize label encoding and standardization
-le_encoders = {col: LabelEncoder() for col in ['protocol_type', 'service', 'flag']} # Initialize label encoders for categorical columns (non-numeric)
-for col, le in le_encoders.items():
-    df[col] = le.fit_transform(df[col]) # Fit and transform the label encoder 
+def load_training_data(data_path=None):
+    """Load and preprocess training data only when training/evaluation is requested."""
+    if data_path is None:
+        data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kddcup_data_corrected.csv")
 
-label_enc = LabelEncoder() # Initialize label encoder for the target column
-df['label'] = label_enc.fit_transform(df['label']) # Encode labels to integers
+    training_df = pd.read_csv(data_path, names=cols)
 
-# Vectorized standard scaling
-scaler = StandardScaler()
-df[df.columns[:-1]] = scaler.fit_transform(df[df.columns[:-1]]) # Fit and transform the standard scaler with all columns except the target column
+    le_encoders = {col: LabelEncoder() for col in ['protocol_type', 'service', 'flag']}
+    for col, le in le_encoders.items():
+        training_df[col] = le.fit_transform(training_df[col])
+
+    training_label_enc = LabelEncoder()
+    training_df['label'] = training_label_enc.fit_transform(training_df['label'])
+
+    scaler = StandardScaler()
+    training_df[training_df.columns[:-1]] = scaler.fit_transform(training_df[training_df.columns[:-1]])
+    return training_df, training_label_enc
 
 # Dataset definition
 class NetDataset(Dataset):
@@ -100,7 +106,7 @@ def train(model, dl, loss_fn, opt, epochs, device):
         logger.info(f"Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(dl):.4f}")
 
 # Evaluation function
-def evaluate(model, dl, device):
+def evaluate(model, dl, device, label_encoder=None):
     model.eval()
     preds, labels = [], [] # Initialize empty lists for predictions and labels
     with torch.no_grad():
@@ -125,22 +131,24 @@ def evaluate(model, dl, device):
     logger.info(f"Accuracy: {accuracy:.4f}, Macro F1: {macro_f1:.4f}, Micro F1: {micro_f1:.4f}")
     logger.info(f"MCC: {mcc:.4f}, Kappa: {kappa:.4f}, Hamming Loss: {hamming:.4f}")
     
-    # Confusion Matrix with label names
-    actual_labels = label_enc.inverse_transform(labels)
-    predicted_labels = label_enc.inverse_transform(preds)
-    confusion_matrix = pd.crosstab(pd.Series(actual_labels, name='Actual'), pd.Series(predicted_labels, name='Predicted'))
-    plt.figure(figsize=(10, 7))
-    sns.heatmap(confusion_matrix, annot=True, fmt='d', cmap='Blues')
-    plt.xlabel('Predicted')
-    plt.ylabel('Actual')
-    plt.title('Confusion Matrix')
-    plt.show()
-    # Create a dictionary to map integer labels back to their original string labels
-    int_to_label = {i: label for i, label in enumerate(label_enc.classes_)}
-    logger.info(f"Integer to Label Mapping: {int_to_label}")
+    active_label_enc = label_encoder or label_enc
+    if active_label_enc is not None:
+        actual_labels = active_label_enc.inverse_transform(labels)
+        predicted_labels = active_label_enc.inverse_transform(preds)
+        confusion_matrix = pd.crosstab(pd.Series(actual_labels, name='Actual'), pd.Series(predicted_labels, name='Predicted'))
+        plt.figure(figsize=(10, 7))
+        sns.heatmap(confusion_matrix, annot=True, fmt='d', cmap='Blues')
+        plt.xlabel('Predicted')
+        plt.ylabel('Actual')
+        plt.title('Confusion Matrix')
+        plt.close()
+        int_to_label = {i: label for i, label in enumerate(active_label_enc.classes_)}
+        logger.info(f"Integer to Label Mapping: {int_to_label}")
 
 # Main Function
 def main():
+    global label_enc
+    df, label_enc = load_training_data()
     input_size = df.shape[1] - 1
     output_size = len(label_enc.classes_)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # Check if GPU is available and set the device if available
@@ -153,7 +161,7 @@ def main():
         logger.info("Loading existing model.")
         checkpoint = torch.load(model_path)
         model.load_state_dict(checkpoint['model_state_dict'])
-        evaluate(model, DataLoader(NetDataset(df), batch_size=BATCH_SIZE), device) # Evaluate the model on the entire dataset 
+        evaluate(model, DataLoader(NetDataset(df), batch_size=BATCH_SIZE), device, label_enc) # Evaluate the model on the entire dataset 
     else:
         logger.info("Training a new model.")
         opt = optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -185,7 +193,7 @@ def main():
 
             model.reset_parameters()  # Reset model parameters
             train(model, train_dl, loss_fn, opt, epochs=TRAINING_EPOCHS, device=device) # Train the model with the custom loss function
-        evaluate(model, val_dl, device) # Evaluate the model on the validation set
+        evaluate(model, val_dl, device, label_enc) # Evaluate the model on the validation set
         torch.save({'model_state_dict': model.state_dict()}, model_path) # Save the model after training to model_path
 
 if __name__ == "__main__":
