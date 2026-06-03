@@ -1,14 +1,14 @@
 # Standard library imports
 import csv
 import hashlib
+import hmac
 import logging
 import os
-import random
 import re
+import secrets
 import smtplib
 import threading
 import time
-import uuid
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -17,8 +17,8 @@ from functools import wraps
 from dotenv import load_dotenv
 # Third-party imports
 from flask import (Flask, Response, flash, make_response, redirect,
-                   render_template, render_template_string, request, send_file,
-                   session, url_for)
+                   render_template, request, send_from_directory, session,
+                   url_for)
 from flask_talisman import Talisman
 from flask_wtf import CSRFProtect, FlaskForm
 from itsdangerous import URLSafeTimedSerializer
@@ -56,7 +56,7 @@ class VerifyCodeForm(FlaskForm): # Form for verifying a code using WTForms
 load_dotenv()
 
 # Flask app setup
-app = Flask(__name__, template_folder='.')
+app = Flask(__name__)
 
 # Rate limiting configuration
 RATE_LIMIT = {} # Rate limit dictionary
@@ -81,7 +81,7 @@ app.config['SECRET_KEY'] = SECRET_KEY
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY']) # Serializer for the secret key
 
 # CSRF protection enabled by default (can be disabled for testing only)
-app.config['CSRF_ENABLED'] = os.getenv('CSRF_ENABLED', 'True') == 'True'
+app.config['WTF_CSRF_ENABLED'] = os.getenv('WTF_CSRF_ENABLED', 'True') == 'True'
 
 # Session configuration 
 app.config['SESSION_COOKIE_SECURE'] = True # Secure session cookie
@@ -92,6 +92,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = SESSION_LIFETIME_SECONDS # Session li
 
 # Pepper for password hashing
 PEPPER = os.getenv("PASSWORD_PEPPER")
+if not PEPPER:
+    raise ValueError("PASSWORD_PEPPER environment variable must be set")
 
 # Content Security Policy (CSP) configuration for Talisman
 csp = {
@@ -106,7 +108,8 @@ csp = {
     'form-action': "'self'",
 }
 
-Talisman(app, content_security_policy=csp) # Apply the CSP to the application
+FORCE_HTTPS = os.getenv('FORCE_HTTPS', 'True') == 'True'
+Talisman(app, content_security_policy=csp, force_https=FORCE_HTTPS) # Apply the CSP to the application
 
 # File paths for data storage and logging
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users_datastore.csv")
@@ -358,6 +361,8 @@ def is_email_registered(email):
                     log_event(f'Registration attempt with already registered email: {email}')
                     flash('Email address already registered.', 'error')
                     return True
+    except FileNotFoundError:
+        return False
     except Exception as e:
         logger.error(f"Failed to read user data: {str(e)}")
     return False
@@ -392,6 +397,8 @@ def get_users_from_csv():
         with open(CSV_FILE, "r") as file:
             reader = csv.reader(file)
             return [create_user_dict(user) for user in reader]
+    except FileNotFoundError:
+        return []
     except Exception as e:
         logger.error(f"Failed to read user data: {str(e)}")
         return None
@@ -401,7 +408,12 @@ def authenticate_user(users, email, password):
     for user in users:
         try:
             hashed_password = user['hashed_password']
-            if hashlib.sha256((password + PEPPER + email).encode()).hexdigest() == hashed_password and user['email'] == email:
+            password_material = build_password_material(password, email)
+            legacy_hash = hashlib.sha256(password_material.encode()).hexdigest()
+            password_matches = hmac.compare_digest(hashed_password, legacy_hash)
+            if not password_matches and hashed_password.startswith(('scrypt:', 'pbkdf2:')):
+                password_matches = check_password_hash(hashed_password, password_material)
+            if password_matches and user['email'] == email:
                 return user
         except:
             shutdown_webserver("Failed to authenticate user.")
@@ -424,18 +436,18 @@ def prepare_verification_response(form):
 
 def generate_coupon_cookie(response):
     """Generate a coupon cookie and set it in the response."""
-    coupon_cookie_value = str(random.randint(VERIFICATION_CODE_MIN, VERIFICATION_CODE_MAX))
+    coupon_cookie_value = secrets.token_urlsafe(32)
     response.set_cookie('coupon', coupon_cookie_value, secure=True,
-                        httponly=False, samesite='Lax', expires=time.time() + VERIFICATION_CODE_EXPIRY_SECONDS)
+                        httponly=True, samesite='Lax', expires=time.time() + VERIFICATION_CODE_EXPIRY_SECONDS)
     return coupon_cookie_value
 
 def generate_session_token():
     """Generate a unique session token."""
-    return str(uuid.uuid4())
+    return secrets.token_urlsafe(32)
 
 def generate_verification_code():
     """Generate a random verification code."""
-    return str(random.randint(VERIFICATION_CODE_MIN, VERIFICATION_CODE_MAX))
+    return str(secrets.randbelow(VERIFICATION_CODE_MAX - VERIFICATION_CODE_MIN + 1) + VERIFICATION_CODE_MIN)
 
 def store_verification_coupon(user, coupon_cookie_value, session_token, verification_code):
     """Store the verification coupon in the global coupon store."""
@@ -463,7 +475,8 @@ def get_verification_coupon(coupon):
 
 def is_correct_code(entered_code, correct_code):
     try:
-        return entered_code.isdigit() and hashlib.sha256(entered_code.encode()).hexdigest() == correct_code
+        entered_code_hash = hashlib.sha256(entered_code.encode()).hexdigest()
+        return entered_code.isdigit() and hmac.compare_digest(entered_code_hash, correct_code)
     except:
         shutdown_webserver("Failed to verify code.")
     return False
@@ -475,7 +488,7 @@ def login_user(response, verification_coupon):
         role = verification_coupon['role']
         store_session(session_token, email, role, time.time() + 1800)
         response.set_cookie('logged_in', session_token, secure=True,
-                            httponly=False, samesite='Lax', expires=time.time() + 1800)
+                            httponly=True, samesite='Lax', expires=time.time() + 1800)
         log_event(f"User {email} logged in with role {role}")
         return response
     except:
@@ -484,9 +497,8 @@ def login_user(response, verification_coupon):
 def generate_reset_token(email):
     """Generate a reset token for the user."""
     try:
-        token = hashlib.sha256((email + app.config['SECRET_KEY']+ str(random.randint(VERIFICATION_CODE_MIN, VERIFICATION_CODE_MAX))).encode()).hexdigest()
         reset_token = {
-            'token': token,
+            'token': secrets.token_urlsafe(32),
             'email': email,
             'expiry': time.time() + PASSWORD_RESET_TOKEN_EXPIRY_SECONDS
         } 
@@ -523,9 +535,13 @@ def find_reset_token(token):
             return reset_token
     return None
 
+def build_password_material(password, email):
+    """Combine password material with the deployment pepper and per-user email."""
+    return password + PEPPER + email
+
 def hash_password(password, email):
     """Hash the password with the email and PEPPER."""
-    return hashlib.sha256((password + PEPPER + email).encode()).hexdigest()
+    return generate_password_hash(build_password_material(password, email))
 
 def update_user_password(email, hashed_password):
     """Update the user's password in the CSV file."""
@@ -559,7 +575,6 @@ def index():
 
 @app.route("/register", methods=["GET", "POST"])
 @rate_limit
-@csrf.exempt
 def register():
     try:
         form = RegistrationForm() # Create a registration form
@@ -587,7 +602,6 @@ def register():
     
 @app.route("/login", methods=["GET", "POST"])
 @rate_limit
-@csrf.exempt
 def login():
     form = LoginForm()
     try:
@@ -612,7 +626,6 @@ def login():
 
 
 @app.route("/verify_code", methods=["POST"])
-@csrf.exempt
 @rate_limit
 def verify_code():
     try:
@@ -675,7 +688,6 @@ def logout():
 
 @app.route("/reset_password_request", methods=["GET", "POST"])
 @rate_limit
-@csrf.exempt
 def reset_password_request():
     """Request a password reset."""
     form = ResetPasswordRequestForm()
@@ -696,7 +708,6 @@ def reset_password_request():
 
 
 @app.route("/reset_password/<token>", methods=["GET", "POST"])
-@csrf.exempt
 @rate_limit
 def reset_password(token):
     try:
@@ -740,7 +751,7 @@ def before_request():
     
 @app.route('/favicon.ico')
 def favicon():
-    return send_file('favicon-32x32.ico')
+    return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=os.getenv('FLASK_DEBUG') == '1')

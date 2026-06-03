@@ -36,6 +36,7 @@ MODEL_HIDDEN_LAYER_SIZE = 128  # Hidden layer size for neural network model
 
 # Enable X-Sendfile to serve static files via the web server (e.g., Nginx)
 model_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trained_nn_model.pth")
+DATASET_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kddcup_data_corrected.csv")
 
 # Dataset definition needed for the simulation 
 class NetDataset(Dataset):
@@ -191,73 +192,85 @@ cols = [
     'dst_host_srv_serror_rate', 'dst_host_rerror_rate', 
     'dst_host_srv_rerror_rate', 'label'
 ]
-# For live data simulation, the dataset is loaded and preprocessed, we use type definitions to reduce memory usage and df type inference
-df = pd.read_csv(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "kddcup_data_corrected.csv"),
-    names=cols,
-    dtype={
-        'duration': 'int16', 'protocol_type': 'category', 'service': 'category',
-        'flag': 'category','src_bytes': 'int32', 'dst_bytes': 'int32',
-        'land': 'int8', 'wrong_fragment': 'int8', 'urgent': 'int8',
-        'hot': 'int8', 'num_failed_logins': 'int8', 'logged_in': 'int8',
-        'num_compromised': 'int8', 'root_shell': 'int8', 'su_attempted': 'int8',
-        'num_root': 'int8', 'num_file_creations': 'int8', 'num_shells': 'int8',
-        'num_access_files': 'int8', 'num_outbound_cmds': 'int8', 'is_host_login': 'int8',
-        'is_guest_login': 'int8', 'count': 'int16', 'srv_count': 'int16', 'serror_rate': 'float64',
-        'srv_serror_rate': 'float64', 'rerror_rate': 'float64', 'srv_rerror_rate': 'float64',
-        'same_srv_rate': 'float64', 'diff_srv_rate': 'float64','srv_diff_host_rate': 'float64',
-        'dst_host_count': 'int16', 'dst_host_srv_count': 'int16', 'dst_host_same_srv_rate': 'float64',
-        'dst_host_diff_srv_rate': 'float64', 'dst_host_same_src_port_rate': 'float64', 'dst_host_srv_diff_host_rate': 'float64',
-        'dst_host_serror_rate': 'float64', 'dst_host_srv_serror_rate': 'float64', 'dst_host_rerror_rate': 'float64',
-        'dst_host_srv_rerror_rate': 'float64', 'label': 'category'
-    },
-    engine='c',
-    low_memory=True
-)
-try:
-    # Optimize label encoding and standardization
-    le_encoders = {col: LabelEncoder() for col in ['protocol_type', 'service', 'flag']}  # Initialize label encoders for categorical columns (non-numeric)
-    for col, le in le_encoders.items():
-        df[col] = le.fit_transform(df[col]).astype('int8')  # Fit, transform, and downcast label encoder
-except Exception as e:
-    logger.error(f"Error during label transformation: {str(e)}")
-    exit(1)
 
-try:
-    label_enc = LabelEncoder()  # Initialize label encoder for the target column
-    df['label'] = label_enc.fit_transform(df['label']).astype('int8')  # Encode labels to integers and downcast
-except Exception as e:
-    logger.error(f"Error during label encoding: {str(e)}")
-    exit(1)
-# Copy data before standardization
-try:
-    df_copy = df.copy(deep=False)
-except Exception as e:
-    logger.error(f"Error during data copy: {str(e)}")
-    exit(1)
-    
-# Vectorized standard scaling needed as preprocessing step for the neural network
-try:
-    scaler = StandardScaler() 
-    df[df.columns[:-1]] = scaler.fit_transform(df[df.columns[:-1]]) # Fit and transform the standard scaler with all columns except the target column
-except Exception as e:
-    logger.error(f"Error during standard scaling: {str(e)}")
-    exit(1)
+DATASET_DTYPES = {
+    'duration': 'int16', 'protocol_type': 'category', 'service': 'category',
+    'flag': 'category', 'src_bytes': 'int32', 'dst_bytes': 'int32',
+    'land': 'int8', 'wrong_fragment': 'int8', 'urgent': 'int8',
+    'hot': 'int8', 'num_failed_logins': 'int8', 'logged_in': 'int8',
+    'num_compromised': 'int8', 'root_shell': 'int8', 'su_attempted': 'int8',
+    'num_root': 'int8', 'num_file_creations': 'int8', 'num_shells': 'int8',
+    'num_access_files': 'int8', 'num_outbound_cmds': 'int8', 'is_host_login': 'int8',
+    'is_guest_login': 'int8', 'count': 'int16', 'srv_count': 'int16',
+    'serror_rate': 'float64', 'srv_serror_rate': 'float64',
+    'rerror_rate': 'float64', 'srv_rerror_rate': 'float64',
+    'same_srv_rate': 'float64', 'diff_srv_rate': 'float64',
+    'srv_diff_host_rate': 'float64', 'dst_host_count': 'int16',
+    'dst_host_srv_count': 'int16', 'dst_host_same_srv_rate': 'float64',
+    'dst_host_diff_srv_rate': 'float64', 'dst_host_same_src_port_rate': 'float64',
+    'dst_host_srv_diff_host_rate': 'float64', 'dst_host_serror_rate': 'float64',
+    'dst_host_srv_serror_rate': 'float64', 'dst_host_rerror_rate': 'float64',
+    'dst_host_srv_rerror_rate': 'float64', 'label': 'category'
+}
 
-# If new data is received, it can be standardized with the same scaler instance
-# In this simulation, no new data is received
+simulation_resources = None
 
-# Load neural network model trained_nn_model.pth
-try:
-    model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trained_nn_model.pth")
-    model = SimpleNN(input_size=df.shape[1] - 1, hidden_size=MODEL_HIDDEN_LAYER_SIZE, output_size=len(label_enc.classes_))
+def load_dataset(data_path: str = DATASET_PATH):
+    """Load and preprocess the simulation dataset when the dashboard needs it."""
+    try:
+        loaded_df = pd.read_csv(
+            data_path,
+            names=cols,
+            dtype=DATASET_DTYPES,
+            engine='c',
+            low_memory=True
+        )
+        loaded_le_encoders = {col: LabelEncoder() for col in ['protocol_type', 'service', 'flag']}
+        for col, le in loaded_le_encoders.items():
+            loaded_df[col] = le.fit_transform(loaded_df[col]).astype('int8')
 
-    checkpoint = torch.load(model_path, map_location=torch.device('cpu')) # Load the model checkpoint
-    model.load_state_dict(checkpoint['model_state_dict']) # Load the model state dictionary which contains the model parameters
-    model.eval()  # Set the model to evaluation mode
-except Exception as e:
-    logger.error(f"Error during model loading: {str(e)}")
-    exit(1)
+        loaded_label_enc = LabelEncoder()
+        loaded_df['label'] = loaded_label_enc.fit_transform(loaded_df['label']).astype('int8')
+        loaded_df_copy = loaded_df.copy(deep=False)
+
+        loaded_scaler = StandardScaler()
+        loaded_df[loaded_df.columns[:-1]] = loaded_scaler.fit_transform(loaded_df[loaded_df.columns[:-1]])
+        return loaded_df, loaded_df_copy, loaded_label_enc, loaded_le_encoders, loaded_scaler
+    except Exception as e:
+        raise RuntimeError(
+            "Unable to load kddcup_data_corrected.csv. Run `git lfs pull` to fetch the dataset."
+        ) from e
+
+def load_model_for_dataset(loaded_df, loaded_label_enc, model_path: str = model_file_path):
+    """Load the pre-trained model for the already prepared dataset."""
+    try:
+        loaded_model = SimpleNN(
+            input_size=loaded_df.shape[1] - 1,
+            hidden_size=MODEL_HIDDEN_LAYER_SIZE,
+            output_size=len(loaded_label_enc.classes_)
+        )
+        checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
+        loaded_model.load_state_dict(checkpoint['model_state_dict'])
+        loaded_model.eval()
+        return loaded_model
+    except Exception as e:
+        raise RuntimeError("Unable to load trained_nn_model.pth.") from e
+
+def load_simulation_resources():
+    """Load dashboard data and model once, on demand."""
+    global simulation_resources
+    if simulation_resources is None:
+        loaded_df, loaded_df_copy, loaded_label_enc, loaded_le_encoders, loaded_scaler = load_dataset()
+        loaded_model = load_model_for_dataset(loaded_df, loaded_label_enc)
+        simulation_resources = (
+            loaded_model,
+            loaded_df,
+            loaded_df_copy,
+            loaded_label_enc,
+            loaded_le_encoders,
+            loaded_scaler
+        )
+    return simulation_resources
 
 # Create a global simulation object to manage the simulation state
 # This object is used to start and stop the simulation for multiple users on different instances
@@ -274,9 +287,17 @@ def map_uuid_to_simulation(uuid: str) -> dict:
 def initialize_simulation(user_uuid: str) -> dict:
     """Initializes the simulation for the given user UUID."""
     global simulations
+    loaded_model, loaded_df, loaded_df_copy, loaded_label_enc, loaded_le_encoders, loaded_scaler = load_simulation_resources()
     simulation = {
         'status': threading.Event(),
-        'data_simulator': DataSimulator(model, df, df_copy, label_enc, le_encoders, scaler),
+        'data_simulator': DataSimulator(
+            loaded_model,
+            loaded_df,
+            loaded_df_copy,
+            loaded_label_enc,
+            loaded_le_encoders,
+            loaded_scaler
+        ),
         'thread': None
     }
     simulation['data_simulator'].uuid = user_uuid

@@ -3,7 +3,7 @@ import os
 import re
 from datetime import datetime
 
-from flask import Blueprint, Flask, redirect, render_template_string, request
+from flask import Blueprint, Flask, redirect, render_template
 
 from app_start_login_register import role_required
 
@@ -25,7 +25,7 @@ def strike_users(users_list):
     global loaded_data
     for user in users_list:
         for column in loaded_data:
-            if user in column:
+            if column and column[0] == user:
                 loaded_data.remove(column)
                 break
         log_event(f'User {user} successfully deleted')
@@ -39,10 +39,10 @@ def new_rank(users_list):
         with open(CSV_FILE, 'r') as source_file:
             reader = csv.reader(source_file)
             for row in reader:
-                if user in row:
-                    if 'admin' in row:
+                if row and row[0] == user:
+                    if row[2] == 'admin':
                         set_role(user, 'admin', 'user')
-                    elif 'user' in row:
+                    elif row[2] == 'user':
                         set_role(user, 'user', 'admin')
 
 def set_role(username, old_role, new_role):
@@ -51,8 +51,8 @@ def set_role(username, old_role, new_role):
     with open(CSV_FILE, "r") as source_file:
         reader = csv.reader(source_file)
         for row in reader:
-            if username in row:
-                row = [re.sub(old_role, new_role, item) for item in row]
+            if row and row[0] == username and row[2] == old_role:
+                row[2] = new_role
             updated_rows.append(row)
     
     with open(CSV_FILE, "w", newline='') as target_file:
@@ -68,13 +68,12 @@ def usermanagement() -> str:
     """Display the user management interface for administrators."""
     global loaded_data
     loaded_data = []
-    with open(CSV_FILE, 'r') as source_file:
-        reader = csv.reader(source_file)
-        for column in reader:
-            loaded_data.append(column)
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "appoverlay_usermanagement.html")) as f:
-        template = f.read()
-    return render_template_string(template, data=loaded_data)
+    if os.path.exists(CSV_FILE):
+        with open(CSV_FILE, 'r') as source_file:
+            reader = csv.reader(source_file)
+            for column in reader:
+                loaded_data.append(column)
+    return render_template('usermanagement.html', data=loaded_data)
 
 @usermanagement_routes.route('/remove_users/<users>')
 @role_required('admin')
@@ -106,5 +105,5 @@ def redirect_usermanagement_remove_users():
 
 if __name__ == '__main__':
     app = Flask(__name__)
-    app.register_blueprint(usermanagement)
+    app.register_blueprint(usermanagement_routes)
     app.run(host='0.0.0.0', port=5000)
