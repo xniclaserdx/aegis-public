@@ -19,6 +19,13 @@ This repository is intended to demonstrate project structure, applied machine le
 - Security controls including Flask-WTF CSRF protection, HttpOnly cookies, Werkzeug password hashing, CSP headers, and optional HTTPS enforcement.
 - Lightweight GitHub Actions checks for syntax and authentication-template smoke tests.
 
+## Screenshots
+
+- Dashboard example:
+
+![AEGIS Dashboard](screenshots/redacted/screenshot2.png)
+
+
 ## Project Structure
 
 ```text
