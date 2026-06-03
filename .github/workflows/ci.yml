@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  lightweight-checks:
+  tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,10 +17,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install lightweight web dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install Flask Flask-Talisman Flask-WTF Werkzeug itsdangerous python-dotenv MarkupSafe WTForms email_validator
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt
 
       - name: Compile Python files
         run: |
@@ -47,3 +48,7 @@ jobs:
                   if expected:
                       assert expected in response.data, path
           PY
+
+      - name: Run unit tests
+        run: |
+          python -m unittest app_unittest.py

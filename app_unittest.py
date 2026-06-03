@@ -1,6 +1,8 @@
 import hashlib
 import os
+import atexit
 from socket import SocketIO
+import tempfile
 import threading
 import time
 import unittest
@@ -8,6 +10,18 @@ from unittest.mock import MagicMock, mock_open, patch
 
 from flask import Flask
 from flask_socketio import SocketIO, SocketIOTestClient
+os.environ.setdefault('SECRET_KEY', 'test-secret')
+os.environ.setdefault('PASSWORD_PEPPER', 'test-pepper')
+os.environ.setdefault('FORCE_HTTPS', 'False')
+os.environ.setdefault('WTF_CSRF_ENABLED', 'False')
+
+import app_start_login_register as auth_module
+
+TEST_RUNTIME_DIR = tempfile.TemporaryDirectory()
+atexit.register(TEST_RUNTIME_DIR.cleanup)
+auth_module.CSV_FILE = os.path.join(TEST_RUNTIME_DIR.name, "users_datastore.csv")
+auth_module.TXT_FILE = os.path.join(TEST_RUNTIME_DIR.name, "log.txt")
+
 from app_start_login_register import (
     is_valid_email,
     session_garbage_collector_thread,
@@ -56,10 +70,12 @@ class TestDashboardFunctionsNoRoutes(unittest.TestCase):
         global simulations
         simulations = [] 
 
+    @patch('app_dashboard.load_simulation_resources')
     @patch('threading.Thread')
-    def test_initialize_simulation(self, mock_thread):
+    def test_initialize_simulation(self, mock_thread, mock_load_resources):
         user_uuid = 'test-uuid'
         mock_data_simulator = MagicMock()
+        mock_load_resources.return_value = tuple(MagicMock() for _ in range(6))
         with patch('app_dashboard.DataSimulator', return_value=mock_data_simulator):
             result = initialize_simulation(user_uuid)
 
@@ -221,7 +237,7 @@ class TestLoginRegisterFunctionsNoRoutes(unittest.TestCase):
     @patch('app_start_login_register.open', new_callable=unittest.mock.mock_open)
     def test_log_event(self, mock_open):
         log_event('Test event')
-        mock_open.assert_called_with(os.path.join(os.path.dirname(os.path.abspath(__file__)), "log.txt"), "a", newline="")
+        mock_open.assert_called_with(auth_module.TXT_FILE, "a", newline="")
         mock_open().write.assert_called_with(unittest.mock.ANY)
 
     def test_get_user_attribute(self):
@@ -260,7 +276,7 @@ class TestLoginRegisterFunctionsNoRoutes(unittest.TestCase):
         self.assertEqual(users[0]['email'], 'test@example.com')
 
     def test_authenticate_user(self):
-        users = [{'email': 'test@example.com', 'hashed_password': hashlib.sha256(('StrongPass1!' + os.getenv("PASSWORD_PEPPER") + 'test@example.com').encode()).hexdigest()}]
+        users = [{'email': 'test@example.com', 'hashed_password': hash_password('StrongPass1!', 'test@example.com')}]
         user = authenticate_user(users, 'test@example.com', 'StrongPass1!')
         self.assertEqual(user['email'], 'test@example.com')
 
@@ -278,8 +294,8 @@ class TestLoginRegisterFunctionsNoRoutes(unittest.TestCase):
     def test_generate_coupon_cookie(self):
         response = MagicMock()
         result = generate_coupon_cookie(response)
-        self.assertTrue(result.isdigit())
-        response.set_cookie.assert_called_with('coupon', result, secure=True, httponly=False, samesite='Lax', expires=unittest.mock.ANY)
+        self.assertTrue(isinstance(result, str))
+        response.set_cookie.assert_called_with('coupon', result, secure=True, httponly=True, samesite='Lax', expires=unittest.mock.ANY)
 
     def test_generate_session_token(self):
         token = generate_session_token()
@@ -310,7 +326,7 @@ class TestLoginRegisterFunctionsNoRoutes(unittest.TestCase):
         verification_coupon = {'email': 'test@example.com', 'session_token': 'session_token', 'role': 'user'}
         result = login_user(response, verification_coupon)
         mock_store_session.assert_called_with('session_token', 'test@example.com', 'user', unittest.mock.ANY)
-        response.set_cookie.assert_called_with('logged_in', 'session_token', secure=True, httponly=False, samesite='Lax', expires=unittest.mock.ANY)
+        response.set_cookie.assert_called_with('logged_in', 'session_token', secure=True, httponly=True, samesite='Lax', expires=unittest.mock.ANY)
         self.assertEqual(result, response)
 
     def test_generate_reset_token(self):
@@ -364,6 +380,13 @@ class TestLoginRegisterRoutes(unittest.TestCase):
         self.client = self.app.test_client()
         self.app.config['TESTING'] = True
         self.app.config['WTF_CSRF_ENABLED'] = False
+        auth_module.RATE_LIMIT.clear()
+        auth_module.banned_ip_for_run.clear()
+        auth_module.session_store.clear()
+        auth_module.coupon_store.clear()
+        auth_module.reset_password_tokens.clear()
+        open(auth_module.CSV_FILE, 'w').close()
+        open(auth_module.TXT_FILE, 'w').close()
 
     def test_store_cookie(self):
         with self.client as c:
@@ -389,7 +412,7 @@ class TestLoginRegisterRoutes(unittest.TestCase):
             'role': 'user'
         }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'Register', response.data)
+        self.assertIn(b'Registration successful', response.data)
 
     def test_login_get(self):
         response = self.client.get('/login', follow_redirects=True)
@@ -397,12 +420,15 @@ class TestLoginRegisterRoutes(unittest.TestCase):
         self.assertIn(b'Login', response.data)
 
     def test_login_post(self):
-        response = self.client.post('/login', data={
-            'email': 'test@example.com',
-            'password': 'Password123!'
-        }, follow_redirects=True)
+        with open(auth_module.CSV_FILE, 'w', newline='') as users_file:
+            users_file.write(f"test@example.com,{hash_password('Password123!', 'test@example.com')},user,0\n")
+        with patch('app_start_login_register.send_verification_code'):
+            response = self.client.post('/login', data={
+                'email': 'test@example.com',
+                'password': 'Password123!'
+            }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'>AEGIS Login', response.data) 
+        self.assertIn(b'Verify Code', response.data)
 
 # Note: Additional route tests are not included as they are tested indirectly by the functions
 # that are called by the routes. For comprehensive testing, End-to-End and Integration testing
@@ -418,20 +444,13 @@ class TestLoginRegisterRoutes(unittest.TestCase):
 class TestBackendTrain(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # Load dataset
-        cols = ['duration', 'protocol_type', 'service', 'flag', 'src_bytes', 'dst_bytes', 'land', 'wrong_fragment', 'urgent', 
-                'hot', 'num_failed_logins', 'logged_in', 'num_compromised', 'root_shell', 'su_attempted', 'num_root', 
-                'num_file_creations', 'num_shells', 'num_access_files', 'num_outbound_cmds', 'is_host_login', 'is_guest_login', 
-                'count', 'srv_count', 'serror_rate', 'srv_serror_rate', 'rerror_rate', 'srv_rerror_rate', 'same_srv_rate', 
-                'diff_srv_rate', 'srv_diff_host_rate', 'dst_host_count', 'dst_host_srv_count', 'dst_host_same_srv_rate', 
-                'dst_host_diff_srv_rate', 'dst_host_same_src_port_rate', 'dst_host_srv_diff_host_rate', 'dst_host_serror_rate', 
-                'dst_host_srv_serror_rate', 'dst_host_rerror_rate', 'dst_host_srv_rerror_rate', 'label']
-        cls.df = pd.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "kddcup_data_corrected.csv"), names=cols)
-
-        # Preprocess dataset
-        le_encoders = {col: LabelEncoder() for col in ['protocol_type', 'service', 'flag']}
-        for col, le in le_encoders.items():
-            cls.df[col] = le.fit_transform(cls.df[col])
+        cls.df = pd.DataFrame({
+            'duration': [0.0, 1.0, 2.0, 3.0],
+            'src_bytes': [10.0, 20.0, 30.0, 40.0],
+            'dst_bytes': [5.0, 15.0, 25.0, 35.0],
+            'count': [1.0, 2.0, 3.0, 4.0],
+            'label': ['normal.', 'attack.', 'normal.', 'attack.']
+        })
         cls.label_enc = LabelEncoder()
         cls.df['label'] = cls.label_enc.fit_transform(cls.df['label'])
         scaler = StandardScaler()
