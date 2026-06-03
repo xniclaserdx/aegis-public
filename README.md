@@ -1,440 +1,179 @@
-# Codename AEGIS
+# AEGIS
 
 **Advanced Enterprise Guardian for Intrusion Security**
 
-This repository is a sanitized public version of a university project.
+[![CI](https://github.com/xniclaserdx/aegis-public/actions/workflows/ci.yml/badge.svg)](https://github.com/xniclaserdx/aegis-public/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Flask](https://img.shields.io/badge/flask-web%20app-green.svg)](https://flask.palletsprojects.com/)
 
-[![Live Demo](https://img.shields.io/badge/demo-live-success)](https://bcsm-aegis.tech)
-[![Python 3.12.7+](https://img.shields.io/badge/python-3.12.7+-blue.svg)](https://www.python.org/downloads/)
-[![Flask](https://img.shields.io/badge/flask-latest-green.svg)](https://flask.palletsprojects.com/)
+AEGIS is a public showcase version of a university project for network anomaly detection. It combines a Flask dashboard, authentication flow, real-time Socket.IO updates, and a PyTorch model trained around KDD Cup 1999-style network traffic data.
 
-> A real-time network anomaly detection system with machine learning capabilities, featuring secure authentication, live monitoring dashboards, and comprehensive network traffic analysis.
+This repository is intended to demonstrate project structure, applied machine learning, web security basics, and end-to-end product thinking. It is not presented as a production-ready security appliance.
 
-## 📋 Table of Contents
+## Highlights
 
-- [Overview](#overview)
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Technology Stack](#technology-stack)
-- [Prerequisites](#prerequisites)
-- [Setup Instructions](#setup-instructions)
-- [Usage](#usage)
-- [Screenshots](#screenshots)
-- [Model Training](#model-training)
-- [Security](#security)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Overview
-
-AEGIS is an advanced anomaly detection system designed to identify suspicious activities within network infrastructure in real-time. Built for the "TechCorp's IT" department, this system provides automated network monitoring using the KDD Cup 1999 dataset, which contains comprehensive network traffic data including both normal and attack patterns.
-
-The system combines machine learning with modern web technologies to deliver a secure, scalable solution for network security monitoring.
-
-## Features
-
-### 🔐 Security
-- **Two-Factor Authentication (2FA)**: Enhanced login security with OTP verification
-- **Secure Password Management**: Password reset workflow with email verification
-- **HTTPS Support**: SSL/TLS encrypted communications
-- **CSRF Protection**: Built-in protection against cross-site request forgery
-- **Session Management**: Secure user session handling
-- **Rate Limiting**: Protection against brute force attacks
-
-### 📊 Network Monitoring
-- **Real-Time Dashboard**: Live network traffic visualization
-- **Anomaly Detection**: ML-powered identification of suspicious activities
-- **Data Table View**: Detailed network traffic logs and analysis
-- **Model Insights**: View trained model performance and statistics
-
-### 👥 User Management
-- **User Registration**: Secure account creation with email validation
-- **Role-Based Access**: Admin panel for user management
-- **Activity Logging**: Track user actions and system events
-
-### 🤖 Machine Learning
-- **Neural Network Model**: PyTorch-based deep learning model
-- **KDD Cup 1999 Dataset**: Trained on comprehensive network attack data
-- **Real-Time Predictions**: Instant anomaly classification
-- **Model Retraining**: Capability to retrain with updated data
+- Flask web application with login, registration, password reset, OTP verification, and role-based pages.
+- Real-time dashboard powered by Flask-SocketIO.
+- PyTorch neural network model for simulated network traffic classification.
+- Admin user-management view backed by CSV-based local storage.
+- Security controls including Flask-WTF CSRF protection, HttpOnly cookies, Werkzeug password hashing, CSP headers, and optional HTTPS enforcement.
+- Lightweight GitHub Actions checks for syntax and authentication-template smoke tests.
 
 ## Project Structure
-```
+
+```text
 aegis-public/
-├── templates/              # HTML templates
-│   ├── dashboard.html      # Main dashboard interface
-│   ├── login.html          # User login page
-│   ├── register.html       # User registration page
-│   ├── otp.html           # Two-factor authentication page
-│   ├── resetpassword.html  # Password reset request page
-│   ├── newpassword.html    # New password setup page
-│   ├── usermanagement.html # Admin user management interface
-│   ├── datatable.html      # Network traffic data table view
-│   └── modelinfo.html      # ML model information and metrics
-│
-├── static/                 # Static assets
-│   ├── css/               # Stylesheets
-│   │   ├── dashboard.css  # Dashboard styles
-│   │   ├── auth.css       # Authentication page styles
-│   │   ├── register.css   # Registration page styles
-│   │   ├── usermanagement.css # User management styles
-│   │   ├── datatable.css  # Data table styles
-│   │   └── modelinfo.css  # Model info styles
-│   │
-│   ├── js/                # JavaScript files
-│   │   ├── dashboard.js   # Dashboard functionality
-│   │   ├── usermanagement.js # User management logic
-│   │   ├── datatable.js   # Data table interactions
-│   │   └── modelinfo.js   # Model info scripts
-│   │
-│   └── favicon.ico        # Application icon
-│
-├── app_webserver.py       # Main Flask application server
-├── app_dashboard.py       # Dashboard logic and routes
-├── app_start_login_register.py # Authentication logic
-├── app_usermanagement_interface.py # User management routes
-├── backend_train.py       # ML model training script
-├── trained_nn_model.pth   # Pre-trained neural network model
-├── kddcup_data_corrected.csv # Training dataset
-├── users_datastore.csv    # User database
-├── requirements.txt       # Python dependencies
-└── README.md             # This file
+  app_webserver.py                 # Application entry point
+  app_start_login_register.py      # Authentication, sessions, email, password reset
+  app_dashboard.py                 # Dashboard routes and traffic simulation
+  app_usermanagement_interface.py  # Admin user-management routes
+  backend_train.py                 # Model training script
+  app_unittest.py                  # Unit tests
+  trained_nn_model.pth             # Pre-trained PyTorch model
+  kddcup_data_corrected.csv        # Dataset tracked through Git LFS
+  requirements.txt                 # Python dependencies
+  templates/                       # HTML templates
+  static/                          # CSS, JavaScript, favicon
+  .github/workflows/ci.yml         # Lightweight GitHub Actions checks
 ```
 
-## Technology Stack
+Runtime files such as `log.txt` and `users_datastore.csv` are intentionally ignored. They are created locally by the application as needed.
 
-### Backend
-- **Flask**: Web framework
-- **Flask-SocketIO**: Real-time bidirectional communication
-- **PyTorch**: Deep learning framework for anomaly detection
-- **Pandas & NumPy**: Data processing and analysis
-- **Scikit-learn**: Machine learning utilities
+## Requirements
 
-### Frontend
-- **HTML5/CSS3**: Modern web interface
-- **JavaScript**: Interactive dashboard components
-- **SocketIO Client**: Real-time updates
+- Python 3.12
+- Git LFS for the dataset
+- Optional: Nginx and a TLS certificate for production-style HTTPS deployment
 
-### Security
-- **Flask-Talisman**: HTTPS enforcement and security headers
-- **Flask-WTF**: CSRF protection
-- **Werkzeug**: Password hashing and security utilities
-- **Nginx**: Reverse proxy with rate limiting
+Install Git LFS before cloning or pull the LFS object after cloning:
 
-### Data Visualization
-- **Matplotlib**: Static data visualizations
-- **Seaborn**: Statistical data visualization
-- **Real-time Charts**: Live network traffic monitoring
-
-## Prerequisites
-
-Before setting up AEGIS, ensure you have the following installed:
-
-- **Python 3.12.7+**: [Download](https://www.python.org/downloads/)
-- **Nginx**: Web server for reverse proxy and HTTPS
-  - Linux (Ubuntu/Debian): Install via `apt`
-  - Windows: [Download from nginx.org](https://nginx.org/en/download.html)
-- **SSL Certificate**: For HTTPS (Let's Encrypt recommended)
-- **Git**: For cloning the repository
-- **pip**: Python package manager (included with Python)
-
-### System Requirements
-- **RAM**: 4GB minimum (8GB recommended for model training)
-- **Storage**: 2GB free space (for dataset and models)
-- **OS**: Linux (Ubuntu/Debian), Windows, or macOS
-
-## Setup Instructions
-
-### 1. Install Nginx
-
-**Linux (Ubuntu/Debian):**
 ```bash
-sudo apt update
-sudo apt install nginx
+git lfs install
+git lfs pull
 ```
 
-**Windows:**
-Download Nginx from the [official website](https://nginx.org/en/download.html) and extract to your desired location.
+Without Git LFS, `kddcup_data_corrected.csv` will only be a small pointer file and the dashboard/model-loading path will not have the real dataset available.
 
-### 2. Obtain SSL Certificate
-
-For production deployments with HTTPS, obtain an SSL certificate:
+## Quick Start
 
 ```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d yourdomain.com
+git clone https://github.com/xniclaserdx/aegis-public.git
+cd aegis-public
+
+git lfs install
+git lfs pull
+
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# macOS/Linux
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+# Windows
+copy .env.example .env
+
+# macOS/Linux
+cp .env.example .env
 ```
 
-### 3. Clone the Repository
+Edit `.env` before starting the app:
 
-```bash
-git clone https://github.com/xniclaserdx/aegis.git
-cd aegis
-```
-
-### 4. Install Python Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 5. Configure Environment Variables
-
-Edit the `.env` file with your configuration:
-
-```bash
-# Email settings for 2FA and password reset
-MAIL_USER=your-email@gmail.com
+```env
+SECRET_KEY=replace-with-a-random-secret
+PASSWORD_PEPPER=replace-with-a-random-pepper
+MAIL_USER=your-email@example.com
 MAIL_PASSWORD=your-app-password
 MAIL_HOST=smtp.gmail.com
 MAIL_PORT=587
-
-# Secret keys (generate new ones for production!)
-SECRET_KEY=your-secret-key-here
-PASSWORD_PEPPER=your-pepper-key-here
+FORCE_HTTPS=False
+WTF_CSRF_ENABLED=True
 ```
 
-⚠️ **Security Note**: Replace default values in `.env` with your own secure credentials before deployment.
+For local development, keep `FORCE_HTTPS=False`. For a production-style deployment behind TLS/Nginx, set it to `True`.
 
-### 6. Configure Nginx as Reverse Proxy
-
-Create or edit Nginx configuration (`/etc/nginx/nginx.conf` or `/etc/nginx/sites-available/default`):
-```nginx
-worker_processes 1;
-
-events {
-    worker_connections 1024;
-}
-
-http {
-    include       mime.types;
-    default_type  application/octet-stream;
-
-    sendfile        on;
-    keepalive_timeout 65;
-
-    # Rate Limiting
-    limit_req_zone $binary_remote_addr zone=one:10m rate=10r/s;
-
-    # Redirect HTTP to HTTPS
-    server {
-        listen       80;
-        listen       [::]:80;
-        server_name  yourdomain.com;
-        
-        # Block common vulnerability scanners
-        location ~* (wordpress|\.php|\.xml|wp-login|wp-admin|/administrator|/configuration\.php|/joomla/|/drupal/|/CHANGELOG\.txt|/adminer\.php|/debug/|\.env|/vendor/|/phpinfo\.php|/shell\.php|\.git/|/timthumb\.php|/setup-config\.php|/api/v1|/graphql|\.bak|\.old|\.save|/backup\.sql|/db_dump\.sql) {
-            return 444;
-        }
-        
-        return 301 https://$host$request_uri;
-    }
-
-    # HTTPS server block
-    server {
-        listen       443 ssl;
-        listen       [::]:443 ssl;
-        server_name  yourdomain.com;
-
-        # SSL certificates
-        ssl_certificate "/path/to/fullchain.pem";
-        ssl_certificate_key "/path/to/privkey.pem";
-
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256';
-        ssl_prefer_server_ciphers on;
-
-        # Block common vulnerability scanners
-        location ~* (wordpress|\.php|\.xml|wp-login|wp-admin|/administrator|/configuration\.php|/joomla/|/drupal/|/CHANGELOG\.txt|/adminer\.php|/debug/|\.env|/vendor/|/phpinfo\.php|/shell\.php|\.git/|/timthumb\.php|/setup-config\.php|/api/v1|/graphql|\.bak|\.old|\.save|/backup\.sql|/db_dump\.sql) {
-            return 444;
-        }
-
-        # Proxy settings
-        location / {
-            limit_req zone=one burst=20 nodelay;
-            proxy_pass http://127.0.0.1:5000;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-
-        error_page   500 502 503 504  /50x.html;
-        location = /50x.html {
-            root   html;
-        }
-    }
-}
-```
-
-**Important**: Replace `yourdomain.com` and certificate paths with your actual values.
-
-### 7. Start Nginx
-
-**Linux:**
-```bash
-sudo systemctl start nginx
-sudo systemctl enable nginx
-sudo systemctl status nginx
-```
-
-**Windows:**
-Navigate to the Nginx directory and run:
-```cmd
-start nginx
-```
-
-### 8. Launch the Application
+Start the application:
 
 ```bash
 python app_webserver.py
 ```
 
-The application will start on `http://0.0.0.0:5000` and will be accessible via Nginx at `https://yourdomain.com`.
+The Flask/Socket.IO app runs on port `5000`.
 
 ## Usage
 
-### First-Time Setup
+1. Register a user account.
+2. Complete the OTP verification flow through the configured email account.
+3. Open the dashboard and start the traffic simulation.
+4. Review recent traffic rows in the data table.
+5. Inspect model details and the model file hash.
 
-1. **Access the Application**: Navigate to `https://yourdomain.com`
-2. **Register an Account**: Click "Register" and create your account
-3. **Verify Email**: Check your email for the verification code
-4. **Complete 2FA Setup**: Enter the OTP code sent to your email
-5. **Login**: Access the dashboard with your credentials
+Admin-only user-management routes require an account with the `admin` role in the local CSV store.
 
-### Dashboard Navigation
+## Model And Data
 
-- **Dashboard**: View real-time network monitoring and anomaly statistics
-- **Data Table**: Browse detailed network traffic logs
-- **Model Info**: View trained model architecture and performance metrics
-- **User Management** (Admin only): Manage user accounts and permissions
+The repository includes a pre-trained model file, `trained_nn_model.pth`. The larger KDD Cup 1999-derived dataset is tracked through Git LFS as `kddcup_data_corrected.csv`.
 
-### Password Reset
-
-If you forget your password:
-1. Click "Forgot Password" on the login page
-2. Enter your email address
-3. Check your email for the reset link
-4. Follow the link and set a new password
-
-### Main Dashboard
-
-**Real-Time Network Monitoring**
-![Dashboard](https://codi.ide3.de/uploads/upload_94b2ff9a6ea68a587c6522fdedab020d.png)
-
-## Model Training
-
-The neural network model is pre-trained and included in the repository (`trained_nn_model.pth`). If you want to retrain the model:
+To retrain the model:
 
 ```bash
 python backend_train.py
 ```
 
-### Training Details
+Training can be slow depending on hardware and dataset availability. The script writes the updated model checkpoint to `trained_nn_model.pth`.
 
-- **Dataset**: KDD Cup 1999 (included as `kddcup_data_corrected.csv`)
-- **Model Architecture**: Multi-layer neural network with PyTorch
-- **Features**: 41 network traffic features
-- **Classes**: Multiple attack types and normal traffic
-- **Validation**: K-fold cross-validation
-- **Metrics**: Accuracy, Precision, Recall, F1-Score, MCC, Cohen's Kappa
+## Security Notes
 
-Training may take several hours depending on your hardware. The script will save the trained model to `trained_nn_model.pth`.
+AEGIS includes security-oriented application controls suitable for a university/demo project:
 
-## Security
+- CSRF protection through Flask-WTF.
+- Password hashing through Werkzeug, with an application-level pepper.
+- HttpOnly secure cookies for login and OTP flow state.
+- Content Security Policy headers through Flask-Talisman.
+- Optional HTTPS enforcement for reverse-proxy deployments.
+- Basic in-memory rate limiting for sensitive routes.
 
-AEGIS implements multiple layers of security:
+Important limitations:
 
-### Application Security
-- **CSRF Protection**: Flask-WTF guards against cross-site request forgery
-- **Password Hashing**: Werkzeug secure password hashing with pepper
-- **Session Security**: Secure session management with secret keys
-- **Input Validation**: Email validation and form input sanitization
+- User storage is CSV-based and intended for demo use, not production.
+- Sessions and reset tokens are stored in memory and are lost on process restart.
+- Email-based OTP depends on correctly configured SMTP credentials.
+- The model simulation is based on historical benchmark data and should not be treated as live IDS coverage.
 
-### Network Security
-- **HTTPS Only**: TLS 1.2/1.3 encryption
-- **Rate Limiting**: Nginx-level request throttling (10 req/s with burst)
-- **Vulnerability Scanner Blocking**: Automatic blocking of common attack patterns
-- **Security Headers**: Flask-Talisman enforces security best practices
+## Checks
 
-### Authentication
-- **Two-Factor Authentication**: Email-based OTP verification
-- **Password Requirements**: Strong password policies
-- **Account Recovery**: Secure password reset workflow
+Lightweight checks run in GitHub Actions on push and pull request. Locally, you can run:
 
-⚠️ **Production Checklist**:
-- [ ] Replace all default secrets in `.env`
-- [ ] Use a valid SSL certificate
-- [ ] Configure firewall rules
-- [ ] Set up regular backups
-- [ ] Monitor logs for suspicious activity
-- [ ] Keep dependencies updated
+```bash
+python -m py_compile app_webserver.py app_start_login_register.py app_dashboard.py app_usermanagement_interface.py backend_train.py app_unittest.py
+```
+
+Full unit tests require a working PyTorch installation and the Git LFS dataset:
+
+```bash
+python -m unittest app_unittest.py
+```
 
 ## Troubleshooting
 
-### Common Issues
+If the app cannot load the dataset, run:
 
-**Issue**: Application won't start
 ```bash
-# Check if port 5000 is already in use
-sudo lsof -i :5000
-# Kill the process if needed
-sudo kill -9 <PID>
+git lfs pull
 ```
 
-**Issue**: Nginx shows 502 Bad Gateway
-- Ensure the Flask application is running on port 5000
-- Check Nginx configuration is correct
-- Verify firewall allows traffic on ports 80 and 443
+If email verification fails, check the SMTP values in `.env`. For Gmail, use an app password.
 
-**Issue**: Email verification not working
-- Check MAIL_USER and MAIL_PASSWORD in `.env`
-- For Gmail, enable "Less secure app access" or use an app password
-- Verify SMTP settings (host, port)
+If the app redirects to HTTPS during local development, set:
 
-**Issue**: "Permission denied" when starting Nginx
-```bash
-# Run with sudo on Linux
-sudo systemctl start nginx
+```env
+FORCE_HTTPS=False
 ```
 
-**Issue**: Database/CSV file errors
-- Ensure `users_datastore.csv` and `log.txt` exist
-- Check file permissions (should be writable)
+## License
 
-### Getting Help
-
-For additional support:
-1. Check the GitLab CI logs for automated test results
-2. Review application logs in `log.txt`
-3. Verify all dependencies are installed: `pip list`
-4. Check Python version: `python --version`
-
-## Contributing
-
-We welcome contributions to AEGIS! Here's how you can help:
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/your-feature-name`
-3. **Make your changes**: Follow existing code style and conventions
-4. **Run tests**: `python -m unittest app_unittest.py`
-5. **Commit your changes**: `git commit -m "Add your feature"`
-6. **Push to your fork**: `git push origin feature/your-feature-name`
-7. **Open a Pull Request**: Describe your changes in detail
-
-### Code Quality
-
-The project uses several automated checks:
-- **Flake8**: PEP 8 compliance
-- **Isort**: Import sorting
-- **Pylint**: Code quality analysis
-- **Bandit**: Security vulnerability scanning
-- **Safety & Pip-Audit**: Dependency vulnerability checks
-
-
-**Project Status**: Active Development  
-**Last Updated**: January 2026  
-**Maintained by**: @xniclaserdx
-
-For questions or issues, please open an issue on the repository.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

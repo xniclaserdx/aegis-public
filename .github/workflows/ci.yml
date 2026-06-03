@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lightweight-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install lightweight web dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install Flask Flask-Talisman Flask-WTF Werkzeug itsdangerous python-dotenv MarkupSafe WTForms email_validator
+
+      - name: Compile Python files
+        run: |
+          python -m py_compile app_webserver.py app_start_login_register.py app_dashboard.py app_usermanagement_interface.py backend_train.py app_unittest.py
+
+      - name: Smoke test authentication templates
+        env:
+          SECRET_KEY: ci-secret-key
+          PASSWORD_PEPPER: ci-password-pepper
+        run: |
+          python - <<'PY'
+          import app_start_login_register as auth
+
+          auth.app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
+          with auth.app.test_client() as client:
+              for path, expected in [
+                  ("/login", b"Login"),
+                  ("/register", b"Register"),
+                  ("/reset_password_request", b"Reset Password"),
+                  ("/favicon.ico", None),
+              ]:
+                  response = client.get(path, base_url="https://localhost")
+                  assert response.status_code == 200, (path, response.status_code)
+                  if expected:
+                      assert expected in response.data, path
+          PY
